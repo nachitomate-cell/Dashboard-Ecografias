@@ -291,6 +291,7 @@ export default function UploadPanel() {
         fecha: report.fecha,
         cantidad: 1,
         precioUnitario: e.precio,
+        estado: e.estado,
       }));
 
     // Eliminar registros previos del mismo día importados, agregar nuevos

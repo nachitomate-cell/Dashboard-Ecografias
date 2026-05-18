@@ -35,6 +35,7 @@ export interface MatchedExam {
   prestacionId: string | null;
   prestacionNombre: string | null;
   precio: number;
+  estado: "finAtencion" | "porRecaudar";
 }
 
 export interface DayReport {
@@ -224,6 +225,7 @@ export function buildDayReport(
 ): DayReport {
   const examenes: MatchedExam[] = parsed.atendidos.map((row) => ({
     row,
+    estado: row.estado.toLowerCase().includes("fin de atenc") ? "finAtencion" as const : "porRecaudar" as const,
     ...matchExamen(row.examen, prestaciones, precios),
   }));
 

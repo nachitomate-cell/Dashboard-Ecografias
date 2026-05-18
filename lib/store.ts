@@ -21,6 +21,7 @@ export interface Registro {
   fecha: string;
   cantidad: number;
   precioUnitario: number;
+  estado?: "finAtencion" | "porRecaudar"; // undefined = datos importados antes del fix
 }
 
 export interface LiquidacionRow {

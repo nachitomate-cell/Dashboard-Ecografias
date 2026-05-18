@@ -9,7 +9,7 @@ import {
   CheckCircle, AlertTriangle, XCircle, FileSpreadsheet,
   ArrowRight, TrendingUp, TrendingDown, Minus,
   FileText, DollarSign, Scale, ShieldCheck, ShieldAlert,
-  Sparkles, RefreshCw,
+  Sparkles, RefreshCw, Clock, Eye, EyeOff,
 } from "lucide-react";
 import {
   getRegistros, getPrestaciones, getLiquidaciones,
@@ -40,6 +40,7 @@ export default function ComparacionPage() {
   const [acuerdoPct,   setAcuerdoPct]   = useState(37);
   const [precios,      setPrecios]      = useState<Record<string, number>>({});
   const [selectedPeriodo, setSelectedPeriodo] = useState("");
+  const [soloFinAtencion, setSoloFinAtencion] = useState(false);
 
   useEffect(() => {
     const regs   = getRegistros();
@@ -67,7 +68,11 @@ export default function ComparacionPage() {
   }, []);
 
   // ── Datos HIS del período ─────────────────────────────────────
-  const hisRegs      = registros.filter((r) => r.fecha.startsWith(selectedPeriodo));
+  const hisRegsAll    = registros.filter((r) => r.fecha.startsWith(selectedPeriodo));
+  const hisPorRecaudar = hisRegsAll.filter((r) => r.estado === "porRecaudar");
+  const hisRegs       = soloFinAtencion
+    ? hisRegsAll.filter((r) => r.estado !== "porRecaudar")
+    : hisRegsAll;
   const hisTotalExams = hisRegs.length;
   const hisValorBase = hisRegs.reduce((s, r) => s + r.precioUnitario * r.cantidad, 0);
   const hisAPagoEst  = Math.round(hisValorBase * acuerdoPct / 100);
@@ -166,15 +171,22 @@ export default function ComparacionPage() {
         if (veredicto === "ok") {
           lines.push({ text: `La liquidación de ${periodo} es consistente con los registros HIS. La diferencia de ${pctDelta >= 0 ? "+" : ""}${pctDelta.toFixed(1)}% está dentro del margen aceptable del ±5%.`, highlight: "emerald" });
         } else if (veredicto === "subpago") {
-          lines.push({ text: `Se detectó un posible subpago en ${periodo}: se liquidaron ${fmt(liqAPago)} pero el estimado HIS era ${fmt(hisAPagoEst)}. La diferencia es de ${fmt(deltaAPago)} (${pctDelta.toFixed(1)}%), fuera del margen del ±5%.`, highlight: "red" });
+          const porRecaudarNote = hisPorRecaudar.length > 0
+            ? ` Hay ${hisPorRecaudar.length} exámenes en estado "Por Recaudar" incluidos en el HIS — si estos se cobraron en ${MONTH_NAMES[parseInt(selectedPeriodo.split("-")[1]) % 12]}, la diferencia real sería menor.`
+            : "";
+          lines.push({ text: `Se detectó un posible subpago en ${periodo}: se liquidaron ${fmt(liqAPago)} pero el estimado HIS era ${fmt(hisAPagoEst)}. La diferencia es de ${fmt(deltaAPago)} (${pctDelta.toFixed(1)}%), fuera del margen del ±5%.${porRecaudarNote}`, highlight: hisPorRecaudar.length > 0 ? "amber" : "red" });
         } else {
           lines.push({ text: `En ${periodo} la liquidación supera el estimado HIS en ${fmt(deltaAPago)} (+${pctDelta.toFixed(1)}%). Esto puede indicar diferencias en el arancel aplicado o exámenes no registrados en HIS.`, highlight: "amber" });
         }
 
         // Examen count
         if (deltaExams !== 0) {
-          const quien = deltaExams > 0 ? "la liquidación tiene más exámenes" : "la liquidación tiene menos exámenes";
-          lines.push({ text: `Conteo de exámenes: HIS registra ${hisTotalExams} y la liquidación incluye ${liqExams}. ${quien} (${deltaExams >= 0 ? "+" : ""}${deltaExams}). ${Math.abs(deltaExams) > 5 ? "Esta diferencia es significativa y debería revisarse." : "La diferencia es menor y puede deberse a correcciones o ajustes normales."}`, highlight: Math.abs(deltaExams) > 5 ? "amber" : undefined });
+          const quien = deltaExams > 0 ? "la liquidación tiene más exámenes" : "HIS registra más exámenes que la liquidación";
+          let conteoExtra = "";
+          if (deltaExams < 0 && hisPorRecaudar.length > 0) {
+            conteoExtra = ` Nota: ${hisPorRecaudar.length} de los exámenes HIS están en estado "Por Recaudar" — estos pueden no aparecer en la liquidación de este mes si el paciente pagó en el mes siguiente.`;
+          }
+          lines.push({ text: `Conteo de exámenes: HIS registra ${hisTotalExams} y la liquidación incluye ${liqExams}. ${quien} (${deltaExams >= 0 ? "+" : ""}${deltaExams}).${conteoExtra} ${Math.abs(deltaExams) > 5 ? "Esta diferencia es significativa y debería revisarse." : "La diferencia es menor y puede deberse a correcciones o ajustes normales."}`, highlight: Math.abs(deltaExams) > 5 ? "amber" : undefined });
         } else {
           lines.push({ text: `El conteo de exámenes coincide perfectamente: ${hisTotalExams} en HIS y ${liqExams} en liquidación.`, highlight: "emerald" });
         }
@@ -336,6 +348,34 @@ export default function ComparacionPage() {
           </div>
         )}
       </div>
+
+      {/* Banner Por Recaudar */}
+      {hisPorRecaudar.length > 0 && (
+        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-3 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Clock className="w-4 h-4 text-violet-400 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-violet-300">
+                {hisPorRecaudar.length} examen{hisPorRecaudar.length !== 1 ? "es" : ""} en estado <span className="font-semibold">Por Recaudar</span> incluido{hisPorRecaudar.length !== 1 ? "s" : ""} en HIS
+              </p>
+              <p className="text-xs text-violet-400/70 mt-0.5">
+                Estos exámenes se realizaron pero el paciente aún no pasó por caja. Pueden aparecer en la liquidación del mes siguiente.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setSoloFinAtencion((v) => !v)}
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all whitespace-nowrap ${
+              soloFinAtencion
+                ? "bg-violet-500/20 border-violet-500/40 text-violet-300"
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:border-violet-500/30 hover:text-violet-400"
+            }`}
+          >
+            {soloFinAtencion ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {soloFinAtencion ? "Mostrando solo Fin de Atención" : "Excluir Por Recaudar"}
+          </button>
+        </div>
+      )}
 
       {/* Métricas comparativas */}
       {(hasHIS || hasLiq) && (
