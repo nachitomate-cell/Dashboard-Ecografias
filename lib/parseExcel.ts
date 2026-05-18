@@ -132,6 +132,8 @@ function norm(s: string): string {
 const KEYWORD_MAP: Array<{ keywords: string[]; id: string }> = [
   // Doppler vascular (más específico primero)
   { keywords: ["vascular periferica", "doppler periferica", "doppler arterial venosa"], id: "040418" },
+  // Doppler renal → mismo arancel que vascular periférica (Medicenter lo factura igual, $23.325)
+  { keywords: ["doppler renal", "eco doppler renal"], id: "040418" },
   { keywords: ["doppler cuello", "vasos cuello", "vasos del cuello", "doppler carotideo", "carotidea", "carotideo"], id: "040419" },
   { keywords: ["transcranea", "transcraneana"], id: "040420" },
   { keywords: ["vasos testiculares", "doppler visceral", "visceral abdominal", "doppler abdominal"], id: "040421" },
@@ -146,8 +148,8 @@ const KEYWORD_MAP: Array<{ keywords: string[]; id: string }> = [
   // Tiroides
   { keywords: ["tiroidea", "tiroides"], id: "040415" },
 
-  // Renal / bazo
-  { keywords: ["doppler renal", "renal bilateral", "ecotomografia renal", "renal o de bazo", "renal"], id: "040410" },
+  // Renal / bazo (sin doppler — doppler renal ya mapeado arriba)
+  { keywords: ["renal bilateral", "ecotomografia renal", "renal o de bazo", "renal"], id: "040410" },
 
   // Pélvica masculina
   { keywords: ["pelvica masculina", "vejiga y prostata", "prostata", "vejiga masculina"], id: "040409" },
