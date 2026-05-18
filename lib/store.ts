@@ -136,11 +136,14 @@ export function upsertEstadoDia(d: EstadoDia): void {
 // --- TopeConfig ---
 export function getTopeConfig(): TopeConfig {
   const cfg = load<Partial<TopeConfig>>(KEYS.topeConfig, {});
-  return {
+  const full: TopeConfig = {
     montoCLP:     cfg.montoCLP     ?? 6_300_000,
     acuerdoPct:   cfg.acuerdoPct   ?? 37,
     nivelCalculo: cfg.nivelCalculo ?? 1,
   };
+  // Migración: si el objeto guardado no tenía nivelCalculo, lo persiste ahora
+  if (cfg.nivelCalculo === undefined) save(KEYS.topeConfig, full);
+  return full;
 }
 export function saveTopeConfig(c: TopeConfig): void {
   save(KEYS.topeConfig, c);
