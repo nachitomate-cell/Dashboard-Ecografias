@@ -113,10 +113,17 @@ export function parseLiquidacionExcel(
     });
   }
 
-  // Calcular porcentaje de acuerdo
-  const sumValor = rows.reduce((s, r) => s + r.valor, 0);
-  const sumAPago = rows.reduce((s, r) => s + r.aPago, 0);
-  const acuerdoPct = sumValor > 0 ? Math.round((sumAPago / sumValor) * 100) : 37;
+  // Detectar porcentaje de acuerdo desde las filas de encabezado del Excel
+  // Busca patrones como "37%", "ECOTOMOGRAFIA 37%", "ACUERDO: 37", etc. en las filas pre-header
+  let acuerdoPct = 37; // default
+  for (let i = 0; i < Math.min(raw.length, headerIdx + 1); i++) {
+    const rowStr = (raw[i] ?? []).map((c) => String(c ?? "")).join(" ");
+    const match = rowStr.match(/\b(\d{1,3})\s*%/);
+    if (match) {
+      const pct = parseInt(match[1], 10);
+      if (pct >= 1 && pct <= 100) { acuerdoPct = pct; break; }
+    }
+  }
 
   // Profesional desde los datos
   const profesionalRaw = cols.profesional >= 0
