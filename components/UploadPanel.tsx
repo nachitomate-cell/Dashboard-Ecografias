@@ -292,6 +292,7 @@ export default function UploadPanel() {
         cantidad: 1,
         precioUnitario: e.precio,
         estado: e.estado,
+        orden: e.row.orden !== "0" ? e.row.orden : undefined,
       }));
 
     // Eliminar registros previos del mismo día importados, agregar nuevos

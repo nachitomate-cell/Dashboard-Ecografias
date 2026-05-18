@@ -22,6 +22,7 @@ export interface Registro {
   cantidad: number;
   precioUnitario: number;
   estado?: "finAtencion" | "porRecaudar"; // undefined = datos importados antes del fix
+  orden?: string; // N° de orden HIS para cruzar con liquidación
 }
 
 export interface LiquidacionRow {

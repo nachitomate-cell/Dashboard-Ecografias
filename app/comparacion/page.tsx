@@ -40,7 +40,8 @@ export default function ComparacionPage() {
   const [acuerdoPct,   setAcuerdoPct]   = useState(37);
   const [precios,      setPrecios]      = useState<Record<string, number>>({});
   const [selectedPeriodo, setSelectedPeriodo] = useState("");
-  const [soloFinAtencion, setSoloFinAtencion] = useState(false);
+  // "todos" | "inteligente" | "soloFin"
+  const [modoHIS, setModoHIS] = useState<"todos" | "inteligente" | "soloFin">("todos");
 
   useEffect(() => {
     const regs   = getRegistros();
@@ -68,11 +69,24 @@ export default function ComparacionPage() {
   }, []);
 
   // ── Datos HIS del período ─────────────────────────────────────
-  const hisRegsAll    = registros.filter((r) => r.fecha.startsWith(selectedPeriodo));
+  const hisRegsAll     = registros.filter((r) => r.fecha.startsWith(selectedPeriodo));
   const hisPorRecaudar = hisRegsAll.filter((r) => r.estado === "porRecaudar");
-  const hisRegs       = soloFinAtencion
+
+  // Órdenes presentes en la liquidación del período (para modo inteligente)
+  const liqOrdenes = new Set(
+    (liquidaciones.find((l) => l.periodo === selectedPeriodo)?.rows ?? [])
+      .map((r) => r.orden)
+      .filter(Boolean)
+  );
+  const porRecaudarEnLiq  = hisPorRecaudar.filter((r) => r.orden && liqOrdenes.has(r.orden));
+  const porRecaudarFuera  = hisPorRecaudar.filter((r) => !r.orden || !liqOrdenes.has(r.orden));
+  const tieneOrden        = hisPorRecaudar.some((r) => r.orden); // si la data ya tiene ordenes
+
+  const hisRegs = modoHIS === "soloFin"
     ? hisRegsAll.filter((r) => r.estado !== "porRecaudar")
-    : hisRegsAll;
+    : modoHIS === "inteligente"
+      ? hisRegsAll.filter((r) => r.estado !== "porRecaudar" || (r.orden && liqOrdenes.has(r.orden)))
+      : hisRegsAll;
   const hisTotalExams = hisRegs.length;
   const hisValorBase = hisRegs.reduce((s, r) => s + r.precioUnitario * r.cantidad, 0);
   const hisAPagoEst  = Math.round(hisValorBase * acuerdoPct / 100);
@@ -172,7 +186,9 @@ export default function ComparacionPage() {
           lines.push({ text: `La liquidación de ${periodo} es consistente con los registros HIS. La diferencia de ${pctDelta >= 0 ? "+" : ""}${pctDelta.toFixed(1)}% está dentro del margen aceptable del ±5%.`, highlight: "emerald" });
         } else if (veredicto === "subpago") {
           const porRecaudarNote = hisPorRecaudar.length > 0
-            ? ` Hay ${hisPorRecaudar.length} exámenes en estado "Por Recaudar" incluidos en el HIS — si estos se cobraron en ${MONTH_NAMES[parseInt(selectedPeriodo.split("-")[1]) % 12]}, la diferencia real sería menor.`
+            ? tieneOrden && modoHIS === "inteligente"
+              ? ` Se excluyeron ${porRecaudarFuera.length} exámenes "Por Recaudar" pendientes de cobro (mes siguiente).`
+              : ` Hay ${hisPorRecaudar.length} exámenes "Por Recaudar" en el HIS. Activa el modo "Cobrados en el período" para una comparación más precisa.`
             : "";
           lines.push({ text: `Se detectó un posible subpago en ${periodo}: se liquidaron ${fmt(liqAPago)} pero el estimado HIS era ${fmt(hisAPagoEst)}. La diferencia es de ${fmt(deltaAPago)} (${pctDelta.toFixed(1)}%), fuera del margen del ±5%.${porRecaudarNote}`, highlight: hisPorRecaudar.length > 0 ? "amber" : "red" });
         } else {
@@ -183,8 +199,10 @@ export default function ComparacionPage() {
         if (deltaExams !== 0) {
           const quien = deltaExams > 0 ? "la liquidación tiene más exámenes" : "HIS registra más exámenes que la liquidación";
           let conteoExtra = "";
-          if (deltaExams < 0 && hisPorRecaudar.length > 0) {
-            conteoExtra = ` Nota: ${hisPorRecaudar.length} de los exámenes HIS están en estado "Por Recaudar" — estos pueden no aparecer en la liquidación de este mes si el paciente pagó en el mes siguiente.`;
+          if (deltaExams < 0 && hisPorRecaudar.length > 0 && modoHIS === "todos") {
+            conteoExtra = ` Nota: ${hisPorRecaudar.length} HIS están en "Por Recaudar". ${tieneOrden ? `De esos, ${porRecaudarEnLiq.length} ya están en esta liquidación y ${porRecaudarFuera.length} aparecerán el mes siguiente. Usa el modo "Cobrados en el período" para la comparación exacta.` : 'Reimporta los archivos HIS para activar el cruce inteligente por N° de orden.'}`;
+          } else if (modoHIS === "inteligente" && tieneOrden) {
+            conteoExtra = ` (Modo inteligente: incluye ${porRecaudarEnLiq.length} "Por Recaudar" confirmados en esta liquidación, excluye ${porRecaudarFuera.length} pendientes.)`;
           }
           lines.push({ text: `Conteo de exámenes: HIS registra ${hisTotalExams} y la liquidación incluye ${liqExams}. ${quien} (${deltaExams >= 0 ? "+" : ""}${deltaExams}).${conteoExtra} ${Math.abs(deltaExams) > 5 ? "Esta diferencia es significativa y debería revisarse." : "La diferencia es menor y puede deberse a correcciones o ajustes normales."}`, highlight: Math.abs(deltaExams) > 5 ? "amber" : undefined });
         } else {
@@ -351,29 +369,56 @@ export default function ComparacionPage() {
 
       {/* Banner Por Recaudar */}
       {hisPorRecaudar.length > 0 && (
-        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-3 flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Clock className="w-4 h-4 text-violet-400 shrink-0" />
-            <div>
+        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 space-y-3">
+          <div className="flex flex-wrap items-start gap-3">
+            <Clock className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-violet-300">
-                {hisPorRecaudar.length} examen{hisPorRecaudar.length !== 1 ? "es" : ""} en estado <span className="font-semibold">Por Recaudar</span> incluido{hisPorRecaudar.length !== 1 ? "s" : ""} en HIS
+                {hisPorRecaudar.length} exámenes en estado <span className="font-semibold">Por Recaudar</span> en HIS
               </p>
-              <p className="text-xs text-violet-400/70 mt-0.5">
-                Estos exámenes se realizaron pero el paciente aún no pasó por caja. Pueden aparecer en la liquidación del mes siguiente.
-              </p>
+              {tieneOrden ? (
+                <p className="text-xs text-violet-400/70 mt-0.5">
+                  Cruzando N° de orden: <span className="text-emerald-400 font-medium">{porRecaudarEnLiq.length} cobrados en este período</span>
+                  {" "}· <span className="text-amber-400 font-medium">{porRecaudarFuera.length} pendientes (aparecerán en el mes siguiente)</span>
+                </p>
+              ) : (
+                <p className="text-xs text-violet-400/70 mt-0.5">
+                  Reimporta los archivos HIS para activar el cruce por N° de orden y saber cuáles se cobraron en este mes.
+                </p>
+              )}
             </div>
           </div>
-          <button
-            onClick={() => setSoloFinAtencion((v) => !v)}
-            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all whitespace-nowrap ${
-              soloFinAtencion
-                ? "bg-violet-500/20 border-violet-500/40 text-violet-300"
-                : "bg-slate-800 border-slate-700 text-slate-400 hover:border-violet-500/30 hover:text-violet-400"
-            }`}
-          >
-            {soloFinAtencion ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            {soloFinAtencion ? "Mostrando solo Fin de Atención" : "Excluir Por Recaudar"}
-          </button>
+
+          {/* Selector de modo */}
+          <div className="flex flex-wrap gap-2">
+            {(["todos", "inteligente", "soloFin"] as const).map((modo) => {
+              const labels = {
+                todos: { label: "Todos los HIS", sub: `${hisRegsAll.length} exáms`, icon: Eye },
+                inteligente: { label: tieneOrden ? "Cobrados en el período" : "Inteligente (reimporta primero)", sub: tieneOrden ? `${hisRegsAll.filter((r) => r.estado !== "porRecaudar" || (r.orden && liqOrdenes.has(r.orden))).length} exáms` : "requiere reimportar", icon: CheckCircle },
+                soloFin: { label: "Solo Fin de Atención", sub: `${hisRegsAll.filter((r) => r.estado !== "porRecaudar").length} exáms`, icon: EyeOff },
+              };
+              const { label, sub, icon: MIcon } = labels[modo];
+              const active = modoHIS === modo;
+              const disabled = modo === "inteligente" && !tieneOrden;
+              return (
+                <button
+                  key={modo}
+                  onClick={() => !disabled && setModoHIS(modo)}
+                  disabled={disabled}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
+                    disabled ? "opacity-40 cursor-not-allowed border-slate-700 text-slate-600 bg-slate-800/30" :
+                    active
+                      ? "bg-violet-500/20 border-violet-500/40 text-violet-200"
+                      : "bg-slate-800/50 border-slate-700 text-slate-400 hover:border-violet-500/30 hover:text-violet-400"
+                  }`}
+                >
+                  <MIcon className="w-3.5 h-3.5" />
+                  <span>{label}</span>
+                  <span className={`${active ? "text-violet-400" : "text-slate-600"}`}>· {sub}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
