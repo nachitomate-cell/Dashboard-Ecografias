@@ -560,7 +560,13 @@ export default function ConfiguracionPage() {
                 {([1, 2, 3] as const).map((n) => (
                   <button
                     key={n}
-                    onClick={() => setTopeForm((f) => ({ ...f, nivelCalculo: String(n) }))}
+                    onClick={() => {
+                      const montoCLP = parseInt(topeForm.montoCLP.replace(/\D/g, ""), 10) || 6_300_000;
+                      const acuerdoPct = Math.min(100, Math.max(1, parseInt(topeForm.acuerdoPct, 10) || 37));
+                      setTopeForm((f) => ({ ...f, nivelCalculo: String(n) }));
+                      saveTopeConfig({ montoCLP, acuerdoPct, nivelCalculo: n });
+                      toast.success(`Nivel ${n} guardado`);
+                    }}
                     className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all ${
                       topeForm.nivelCalculo === String(n)
                         ? "bg-sky-500/20 border-sky-500/40 text-sky-400"
@@ -573,7 +579,7 @@ export default function ConfiguracionPage() {
               </div>
               <p className="text-xs text-slate-600">
                 {topeForm.nivelCalculo === "1"
-                  ? "✓ Nivel 1 — usado por Medicenter UNO SPA (recomendado)"
+                  ? "✓ Nivel 1 — Medicenter UNO SPA (guardado automáticamente al seleccionar)"
                   : topeForm.nivelCalculo === "2"
                   ? "Nivel 2 — precio estándar Isapre privada"
                   : "Nivel 3 — precio máximo arancel"}
