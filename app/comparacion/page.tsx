@@ -47,9 +47,10 @@ export default function ComparacionPage() {
     const liqs   = getLiquidaciones();
     const cfg    = getTopeConfig();
 
-    // build precios map
+    // build precios map usando nivel configurado
+    const { nivelCalculo } = cfg;
     const pm: Record<string, number> = {};
-    getPrecios().forEach((p) => { if (p.nivel === 2) pm[p.prestacionId] = p.precio; });
+    getPrecios().forEach((p) => { if (p.nivel === nivelCalculo) pm[p.prestacionId] = p.precio; });
     getPrecios().forEach((p) => { if (!pm[p.prestacionId]) pm[p.prestacionId] = p.precio; });
 
     setRegistros(regs);

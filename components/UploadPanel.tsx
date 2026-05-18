@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { parseExcelFile, buildDayReport, type DayReport } from "@/lib/parseExcel";
-import { getPrestaciones, getPrecios, getRegistros, saveRegistros, upsertEstadoDia, type Registro } from "@/lib/store";
+import { getPrestaciones, getPrecios, getRegistros, saveRegistros, upsertEstadoDia, getTopeConfig, type Registro } from "@/lib/store";
 import { toast } from "@/lib/toast";
 
 function fmt(n: number) {
@@ -211,13 +211,14 @@ export default function UploadPanel() {
     setLoading(true);
 
     const prestaciones = getPrestaciones();
+    const { nivelCalculo } = getTopeConfig();
     const precios: Record<string, number> = {};
     getPrecios().forEach((p) => {
-      if ((p as typeof p & { nivel?: number }).nivel === 2) {
+      if ((p as typeof p & { nivel?: number }).nivel === nivelCalculo) {
         precios[p.prestacionId] = p.precio;
       }
     });
-    // fallback nivel 1 si no hay nivel 2
+    // fallback: cualquier nivel disponible
     getPrecios().forEach((p) => {
       if (!precios[p.prestacionId]) precios[p.prestacionId] = p.precio;
     });

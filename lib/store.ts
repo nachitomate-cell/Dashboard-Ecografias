@@ -54,6 +54,7 @@ export interface EstadoDia {
 export interface TopeConfig {
   montoCLP: number;    // default 6_300_000
   acuerdoPct: number;  // % estimado para A Pago desde HIS, default 37
+  nivelCalculo: 1 | 2 | 3; // nivel arancel para calcular A Pago, default 1 (Medicenter usa Nivel 1)
 }
 
 const KEYS = {
@@ -134,7 +135,12 @@ export function upsertEstadoDia(d: EstadoDia): void {
 
 // --- TopeConfig ---
 export function getTopeConfig(): TopeConfig {
-  return load<TopeConfig>(KEYS.topeConfig, { montoCLP: 6_300_000, acuerdoPct: 37 });
+  const cfg = load<Partial<TopeConfig>>(KEYS.topeConfig, {});
+  return {
+    montoCLP:     cfg.montoCLP     ?? 6_300_000,
+    acuerdoPct:   cfg.acuerdoPct   ?? 37,
+    nivelCalculo: cfg.nivelCalculo ?? 1,
+  };
 }
 export function saveTopeConfig(c: TopeConfig): void {
   save(KEYS.topeConfig, c);

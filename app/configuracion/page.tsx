@@ -53,7 +53,7 @@ export default function ConfiguracionPage() {
   const [arancelImportado, setArancelImportado] = useState(false);
 
   // Tope
-  const [topeForm, setTopeForm] = useState({ montoCLP: "6300000", acuerdoPct: "37" });
+  const [topeForm, setTopeForm] = useState({ montoCLP: "6300000", acuerdoPct: "37", nivelCalculo: "1" });
   const [topeSaved, setTopeSaved] = useState(false);
 
   // Demo / Reset
@@ -65,7 +65,7 @@ export default function ConfiguracionPage() {
     setPrestaciones(p);
     setPrecios(pr);
     const tc = getTopeConfig();
-    setTopeForm({ montoCLP: String(tc.montoCLP), acuerdoPct: String(tc.acuerdoPct) });
+    setTopeForm({ montoCLP: String(tc.montoCLP), acuerdoPct: String(tc.acuerdoPct), nivelCalculo: String(tc.nivelCalculo) });
     const init: Record<string, string> = {};
     p.forEach((prest) => {
       const precio = pr
@@ -147,7 +147,8 @@ export default function ConfiguracionPage() {
   function handleSaveTope() {
     const montoCLP = parseInt(topeForm.montoCLP.replace(/\D/g, ""), 10) || 6_300_000;
     const acuerdoPct = Math.min(100, Math.max(1, parseInt(topeForm.acuerdoPct, 10) || 37));
-    saveTopeConfig({ montoCLP, acuerdoPct });
+    const nivelCalculo = ([1, 2, 3].includes(parseInt(topeForm.nivelCalculo)) ? parseInt(topeForm.nivelCalculo) : 1) as 1 | 2 | 3;
+    saveTopeConfig({ montoCLP, acuerdoPct, nivelCalculo });
     setTopeSaved(true);
     setTimeout(() => setTopeSaved(false), 2000);
     toast.success("Meta mensual guardada");
@@ -551,6 +552,32 @@ export default function ConfiguracionPage() {
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
               </div>
               <p className="text-xs text-slate-600 mt-1">Se usa para estimar A Pago cuando no hay liquidación cargada. El valor real se lee de la liquidación.</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-300">Nivel de arancel para cálculos</label>
+              <div className="flex gap-2">
+                {([1, 2, 3] as const).map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setTopeForm((f) => ({ ...f, nivelCalculo: String(n) }))}
+                    className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all ${
+                      topeForm.nivelCalculo === String(n)
+                        ? "bg-sky-500/20 border-sky-500/40 text-sky-400"
+                        : "bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Nivel {n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-600">
+                {topeForm.nivelCalculo === "1"
+                  ? "✓ Nivel 1 — usado por Medicenter UNO SPA (recomendado)"
+                  : topeForm.nivelCalculo === "2"
+                  ? "Nivel 2 — precio estándar Isapre privada"
+                  : "Nivel 3 — precio máximo arancel"}
+              </p>
             </div>
 
             <button
