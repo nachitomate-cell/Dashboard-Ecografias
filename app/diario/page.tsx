@@ -32,7 +32,7 @@ export default function DiarioPage() {
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [calMes, setCalMes] = useState(new Date().getMonth());
   const [calAnio, setCalAnio] = useState(new Date().getFullYear());
-  const [estadosMes, setEstadosMes] = useState({ finAtencion: 0, ausente: 0, eliminado: 0, enCaja: 0 });
+  const [estadosMes, setEstadosMes] = useState({ finAtencion: 0, porRecaudar: 0, ausente: 0, eliminado: 0, enCaja: 0 });
 
   function reloadData() {
     const regs = getRegistros();
@@ -45,6 +45,7 @@ export default function DiarioPage() {
     });
     setEstadosMes({
       finAtencion: dias.reduce((s, d) => s + d.finAtencion, 0),
+      porRecaudar: dias.reduce((s, d) => s + (d.porRecaudar ?? 0), 0),
       ausente:     dias.reduce((s, d) => s + d.ausente, 0),
       eliminado:   dias.reduce((s, d) => s + d.eliminado, 0),
       enCaja:      dias.reduce((s, d) => s + d.enCaja, 0),
@@ -274,27 +275,29 @@ export default function DiarioPage() {
       </div>
 
       {/* Estado de citaciones del mes */}
-      {(estadosMes.finAtencion + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja) > 0 && (
+      {(estadosMes.finAtencion + estadosMes.porRecaudar + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja) > 0 && (
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-medium text-slate-300">Estado de Citaciones — {MONTH_NAMES[new Date().getMonth()]}</p>
             <p className="text-xs text-slate-600 tabular-nums">
-              Total: {estadosMes.finAtencion + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja}
+              Total: {estadosMes.finAtencion + estadosMes.porRecaudar + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja}
             </p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
               { label: "Fin de Atención", value: estadosMes.finAtencion, icon: UserCheck,  color: "emerald" },
+              { label: "Por Recaudar",    value: estadosMes.porRecaudar, icon: CreditCard, color: "violet"  },
+              { label: "En Caja",         value: estadosMes.enCaja,      icon: CreditCard, color: "sky"     },
               { label: "Ausente",         value: estadosMes.ausente,     icon: UserX,      color: "amber"   },
               { label: "Eliminado",       value: estadosMes.eliminado,   icon: UserMinus,  color: "red"     },
-              { label: "En Caja",         value: estadosMes.enCaja,      icon: CreditCard, color: "sky"     },
             ].map(({ label, value, icon: Icon, color }) => {
-              const total = estadosMes.finAtencion + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja;
+              const total = estadosMes.finAtencion + estadosMes.porRecaudar + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja;
               const pct = total > 0 ? Math.round((value / total) * 100) : 0;
               return (
                 <div key={label} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-800/30 px-4 py-3">
                   <div className={`p-2 rounded-lg border shrink-0 ${
                     color === "emerald" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :
+                    color === "violet"  ? "bg-violet-500/10  border-violet-500/20  text-violet-400"  :
                     color === "amber"   ? "bg-amber-500/10  border-amber-500/20  text-amber-400"   :
                     color === "red"     ? "bg-red-500/10    border-red-500/20    text-red-400"     :
                                           "bg-sky-500/10    border-sky-500/20    text-sky-400"
@@ -311,12 +314,13 @@ export default function DiarioPage() {
             })}
           </div>
           {(() => {
-            const total = estadosMes.finAtencion + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja;
+            const total = estadosMes.finAtencion + estadosMes.porRecaudar + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja;
             if (total === 0) return null;
             return (
               <div className="mt-4 h-2 rounded-full overflow-hidden flex gap-px">
                 {[
                   { v: estadosMes.finAtencion, c: "#34d399" },
+                  { v: estadosMes.porRecaudar, c: "#a78bfa" },
                   { v: estadosMes.enCaja,      c: "#38bdf8" },
                   { v: estadosMes.ausente,     c: "#fbbf24" },
                   { v: estadosMes.eliminado,   c: "#f87171" },

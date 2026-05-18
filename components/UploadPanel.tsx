@@ -240,7 +240,7 @@ export default function UploadPanel() {
           fileName: file.name,
           total: 0, matched: 0, unmatched: 0, ingresoEstimado: 0,
           examenes: [], sinMatchNombres: [],
-          statusCounts: { finAtencion: 0, ausente: 0, eliminado: 0, enCaja: 0, otros: 0 },
+          statusCounts: { finAtencion: 0, porRecaudar: 0, ausente: 0, eliminado: 0, enCaja: 0, otros: 0 },
         });
       }
     }

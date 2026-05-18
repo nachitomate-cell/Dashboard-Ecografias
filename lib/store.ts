@@ -46,6 +46,7 @@ export interface Liquidacion {
 export interface EstadoDia {
   fecha: string;       // YYYY-MM-DD
   finAtencion: number;
+  porRecaudar: number;
   ausente: number;
   eliminado: number;
   enCaja: number;

@@ -15,6 +15,7 @@ export interface ExamRow {
 
 export interface StatusCounts {
   finAtencion: number;
+  porRecaudar: number;
   ausente: number;
   eliminado: number;
   enCaja: number;
@@ -91,10 +92,11 @@ export function parseExcelFile(buffer: ArrayBuffer, fileName: string): ParsedDay
     });
   }
 
-  // Solo atendidos (Fin de Atención), deduplicar por # Orden + Examen
+  // Atendidos = "Fin de Atención" + "Por recaudar" (ambos son exámenes realizados y liquidables)
   const seen = new Set<string>();
   const atendidos = rows.filter((r) => {
-    if (!r.estado.toLowerCase().includes("fin de atenc")) return false;
+    const e = r.estado.toLowerCase();
+    if (!e.includes("fin de atenc") && !e.includes("por recaudar")) return false;
     const key = r.orden !== "0" ? `${r.orden}|${r.examen}` : `${r.paciente}|${r.examen}|${r.hrReserva}`;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -102,12 +104,13 @@ export function parseExcelFile(buffer: ArrayBuffer, fileName: string): ParsedDay
   });
 
   const finAtencion = rows.filter((r) => r.estado.toLowerCase().includes("fin de atenc")).length;
+  const porRecaudar = rows.filter((r) => r.estado.toLowerCase().includes("por recaudar")).length;
   const ausente     = rows.filter((r) => r.estado.toLowerCase().includes("ausente")).length;
   const eliminado   = rows.filter((r) => r.estado.toLowerCase().includes("eliminado")).length;
   const enCaja      = rows.filter((r) => r.estado.toLowerCase().includes("en caja")).length;
   const statusCounts: StatusCounts = {
-    finAtencion, ausente, eliminado, enCaja,
-    otros: Math.max(0, rows.length - finAtencion - ausente - eliminado - enCaja),
+    finAtencion, porRecaudar, ausente, eliminado, enCaja,
+    otros: Math.max(0, rows.length - finAtencion - porRecaudar - ausente - eliminado - enCaja),
   };
 
   return { fecha, fileName, rows, atendidos, statusCounts };
