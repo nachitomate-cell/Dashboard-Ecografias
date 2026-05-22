@@ -11,15 +11,16 @@ import {
   Stethoscope,
   HardDrive,
   TrendingUp,
+  X,
 } from "lucide-react";
 import clsx from "clsx";
-import { getStorageUsage } from "@/lib/store";
+import { getStorageUsage, getRegistros } from "@/lib/store";
 
 const nav = [
-  { href: "/diario",     label: "Diario",      icon: Activity    },
-  { href: "/mensual",    label: "Mensual",      icon: BarChart2   },
-  { href: "/comparacion",label: "Verificación", icon: GitCompare  },
-  { href: "/tendencia",  label: "Tendencia",    icon: TrendingUp  },
+  { href: "/diario",      label: "Diario",      icon: Activity   },
+  { href: "/mensual",     label: "Mensual",      icon: BarChart2  },
+  { href: "/comparacion", label: "Verificación", icon: GitCompare },
+  { href: "/tendencia",   label: "Tendencia",    icon: TrendingUp },
 ];
 
 function fmtBytes(b: number): string {
@@ -28,38 +29,67 @@ function fmtBytes(b: number): string {
   return `${b} B`;
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const [storePct, setStorePct] = useState(0);
-  const [storeUsed, setStoreUsed] = useState(0);
+  const [storePct, setStorePct]       = useState(0);
+  const [storeUsed, setStoreUsed]     = useState(0);
+  const [pendingPR, setPendingPR]     = useState(0);
 
   useEffect(() => {
     function update() {
       const { totalBytes, limitBytes } = getStorageUsage();
       setStorePct(Math.min((totalBytes / limitBytes) * 100, 100));
       setStoreUsed(totalBytes);
+
+      const regs = getRegistros();
+      setPendingPR(regs.filter((r) => r.estado === "porRecaudar").length);
     }
     update();
     const id = setInterval(update, 5000);
     return () => clearInterval(id);
   }, []);
 
+  // Close mobile sidebar on route change
+  useEffect(() => { onClose?.(); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const barColor = storePct > 80 ? "#f87171" : storePct > 50 ? "#fbbf24" : "#34d399";
 
   return (
-    <aside className="flex flex-col w-60 shrink-0 border-r border-slate-800/80 bg-slate-950 h-screen relative overflow-hidden">
+    <aside
+      className={clsx(
+        "flex flex-col w-60 shrink-0 border-r border-slate-800/80 bg-slate-950 h-full relative overflow-hidden no-print",
+        // Mobile: fixed overlay, slide in/out
+        "fixed md:relative inset-y-0 left-0 z-40 md:z-auto h-screen",
+        "transition-transform duration-300 ease-in-out",
+        mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+      )}
+    >
       {/* Glow top-left */}
       <div className="pointer-events-none absolute -top-16 -left-16 w-48 h-48 rounded-full bg-sky-500/5 blur-3xl" />
 
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-800/80">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20">
-          <Stethoscope className="w-5 h-5 text-sky-400" />
+      <div className="flex items-center justify-between gap-3 px-6 py-6 border-b border-slate-800/80">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20">
+            <Stethoscope className="w-5 h-5 text-sky-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-100 leading-tight">Tecnólogo</p>
+            <p className="text-xs text-slate-500 leading-tight">Médico · Ecografía</p>
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-semibold text-slate-100 leading-tight">Tecnólogo</p>
-          <p className="text-xs text-slate-500 leading-tight">Médico · Ecografía</p>
-        </div>
+        {/* Close button (mobile only) */}
+        <button
+          onClick={onClose}
+          className="md:hidden p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Nav */}
@@ -69,6 +99,7 @@ export default function Sidebar() {
         </p>
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
+          const isDiario = href === "/diario";
           return (
             <Link key={href} href={href}
               className={clsx(
@@ -80,7 +111,15 @@ export default function Sidebar() {
             >
               <Icon className="w-4 h-4 shrink-0" />
               {label}
-              {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-sky-400" />}
+              <span className="ml-auto flex items-center gap-1.5">
+                {/* Por Recaudar badge on Diario */}
+                {isDiario && pendingPR > 0 && !active && (
+                  <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-violet-500/20 border border-violet-500/30 text-[10px] font-semibold text-violet-400">
+                    {pendingPR > 99 ? "99+" : pendingPR}
+                  </span>
+                )}
+                {active && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
+              </span>
             </Link>
           );
         })}
@@ -88,7 +127,7 @@ export default function Sidebar() {
 
       {/* Bottom section */}
       <div className="px-3 pb-5 border-t border-slate-800 pt-4 space-y-1">
-        {/* Uso de almacenamiento */}
+        {/* Almacenamiento */}
         <Link href="/uso"
           className={clsx(
             "flex flex-col gap-2 px-3 py-3 rounded-lg text-sm font-medium transition-all duration-150 group",
@@ -102,7 +141,6 @@ export default function Sidebar() {
             <span>Almacenamiento</span>
             {pathname === "/uso" && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-sky-400" />}
           </div>
-          {/* Mini barra */}
           <div className="ml-7 space-y-1">
             <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all duration-500"

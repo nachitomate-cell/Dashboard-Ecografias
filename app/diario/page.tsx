@@ -29,7 +29,7 @@ export default function DiarioPage() {
   const todayStr = new Date().toISOString().split("T")[0];
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [prestaciones, setPrestaciones] = useState<Prestacion[]>([]);
-  const [activeTab, setActiveTab] = useState<"resumen" | "carga">("resumen");
+  const [activeTab, setActiveTab] = useState<"resumen" | "carga" | "pendientes">("resumen");
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [calMes, setCalMes] = useState(new Date().getMonth());
   const [calAnio, setCalAnio] = useState(new Date().getFullYear());
@@ -234,18 +234,27 @@ export default function DiarioPage() {
             {new Date().toLocaleDateString("es-CL", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 no-print">
           <HelpButton onClick={() => setShowHelp(true)} />
-        <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg border border-slate-800">
-          <button onClick={() => setActiveTab("resumen")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "resumen" ? "bg-slate-900 text-slate-100 border border-slate-700 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}>
-            <TrendingUp className="w-4 h-4" /> Resumen
-          </button>
-          <button onClick={() => setActiveTab("carga")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "carga" ? "bg-slate-900 text-slate-100 border border-slate-700 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}>
-            <Upload className="w-4 h-4" /> Cargar Excel
-          </button>
-        </div>
+          <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg border border-slate-800">
+            <button onClick={() => setActiveTab("resumen")}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "resumen" ? "bg-slate-900 text-slate-100 border border-slate-700 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}>
+              <TrendingUp className="w-4 h-4" /> Resumen
+            </button>
+            <button onClick={() => setActiveTab("pendientes")}
+              className={`relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "pendientes" ? "bg-slate-900 text-slate-100 border border-slate-700 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}>
+              <CreditCard className="w-4 h-4" /> Pendientes
+              {registros.filter((r) => r.estado === "porRecaudar").length > 0 && (
+                <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-violet-500/20 border border-violet-500/30 text-[10px] font-semibold text-violet-400">
+                  {registros.filter((r) => r.estado === "porRecaudar").length}
+                </span>
+              )}
+            </button>
+            <button onClick={() => setActiveTab("carga")}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "carga" ? "bg-slate-900 text-slate-100 border border-slate-700 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}>
+              <Upload className="w-4 h-4" /> Cargar Excel
+            </button>
+          </div>
         </div>
       </div>
 
@@ -440,8 +449,32 @@ export default function DiarioPage() {
         </div>
       )}
 
-      {/* Charts row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Empty state for selected day */}
+      {selRegs.length === 0 && (
+        <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/40 py-14 flex flex-col items-center gap-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center">
+            <FileText className="w-7 h-7 text-slate-600" />
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium">Sin datos para {selLabel}</p>
+            <p className="text-slate-600 text-sm mt-1">
+              {isToday
+                ? "Importa el HIS de hoy para ver las estadísticas del día"
+                : "No hay registros importados para este día"}
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab("carga")}
+            className="flex items-center gap-2 px-4 py-2 bg-sky-500/10 border border-sky-500/20 text-sky-400 hover:bg-sky-500/20 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Importar HIS
+          </button>
+        </div>
+      )}
+
+      {/* Charts rows (only when there's data for the selected day) */}
+      {selRegs.length > 0 && <><div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900 p-5">
           <p className="text-sm font-medium text-slate-300 mb-4">Ingresos — 7 días anteriores</p>
           <ResponsiveContainer width="100%" height={200}>
@@ -512,7 +545,7 @@ export default function DiarioPage() {
         ) : (
           <div className="flex items-center justify-center h-40 text-slate-600 text-sm">Sin registros para {selLabel.toLowerCase()}</div>
         )}
-      </div>
+      </div></>}
 
       {/* Tabla de registros colapsable */}
       {selRegs.length > 0 && (
@@ -583,6 +616,116 @@ export default function DiarioPage() {
         </div>
       )}
       </>}
+
+      {/* ── Pendientes Tab ─────────────────────────────────────────── */}
+      {activeTab === "pendientes" && (() => {
+        const pendingRegs = registros
+          .filter((r) => r.estado === "porRecaudar")
+          .sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+        const totalPending = pendingRegs.reduce((s, r) => s + r.precioUnitario * r.cantidad, 0);
+
+        // Group by month
+        const byMonth: Record<string, typeof pendingRegs> = {};
+        pendingRegs.forEach((r) => {
+          const m = r.fecha.slice(0, 7);
+          if (!byMonth[m]) byMonth[m] = [];
+          byMonth[m].push(r);
+        });
+
+        return (
+          <div className="space-y-4">
+            {/* Summary */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                <p className="text-xs text-violet-400 font-medium uppercase tracking-wider mb-1">Exámenes pendientes</p>
+                <p className="text-2xl font-semibold text-slate-100 tabular-nums">{pendingRegs.length}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Por Recaudar sin liquidar</p>
+              </div>
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                <p className="text-xs text-amber-400 font-medium uppercase tracking-wider mb-1">Valor pendiente est.</p>
+                <p className="text-2xl font-semibold text-slate-100 tabular-nums">{fmt(totalPending)}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Según Arancel MLE 2026</p>
+              </div>
+            </div>
+
+            {pendingRegs.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/50 py-16 flex flex-col items-center gap-3 text-center">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                  <UserCheck className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-slate-300 font-medium">Sin exámenes pendientes</p>
+                  <p className="text-slate-600 text-sm mt-1">Todos los Por Recaudar han sido liquidados</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Info box */}
+                <div className="flex items-start gap-3 rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-3">
+                  <CreditCard className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-violet-300">
+                    Los exámenes <strong>Por Recaudar</strong> ya fueron realizados pero el paciente aún no pagó en caja al momento de exportar el HIS.
+                    Pueden tardar 1-4 semanas en aparecer en la liquidación de MediCenter.
+                  </p>
+                </div>
+
+                {/* Table grouped by month */}
+                {Object.entries(byMonth).map(([mes, regsDelMes]) => {
+                  const mesTotal = regsDelMes.reduce((s, r) => s + r.precioUnitario * r.cantidad, 0);
+                  const [y, m] = mes.split("-").map(Number);
+                  const mesLabel = new Date(y, m - 1, 1).toLocaleDateString("es-CL", { month: "long", year: "numeric" });
+                  return (
+                    <div key={mes} className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden print-avoid-break">
+                      {/* Month header */}
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/30">
+                        <p className="text-sm font-medium text-slate-200 capitalize">{mesLabel}</p>
+                        <div className="flex items-center gap-3 text-xs text-slate-500">
+                          <span>{regsDelMes.length} examen{regsDelMes.length !== 1 ? "es" : ""}</span>
+                          <span className="font-medium text-slate-300 tabular-nums">{fmt(mesTotal)}</span>
+                        </div>
+                      </div>
+                      {/* Rows */}
+                      <table className="w-full text-xs">
+                        <tbody>
+                          {regsDelMes.map((reg) => {
+                            const prest = prestaciones.find((p) => p.id === reg.prestacionId);
+                            return (
+                              <tr key={reg.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors group">
+                                <td className="px-4 py-2.5 text-slate-500 tabular-nums">
+                                  {new Date(reg.fecha + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+                                </td>
+                                <td className="px-4 py-2.5 text-slate-300 font-medium">
+                                  {prest?.nombre ?? reg.prestacionId}
+                                </td>
+                                {reg.paciente && (
+                                  <td className="px-4 py-2.5 text-slate-500 max-w-[160px] truncate hidden md:table-cell">
+                                    {reg.paciente}
+                                  </td>
+                                )}
+                                <td className="px-4 py-2.5 text-right text-slate-300 tabular-nums">{fmt(reg.precioUnitario)}</td>
+                                <td className="px-2 py-2.5 text-right">
+                                  <button
+                                    onClick={() => handleDeleteRegistro(reg.id)}
+                                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-red-400 rounded transition-all"
+                                    title="Eliminar registro"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

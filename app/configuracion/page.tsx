@@ -64,6 +64,10 @@ export default function ConfiguracionPage() {
   const [confirmReset, setConfirmReset] = useState<"none" | "operacional" | "todo">("none");
   const [showHelp, setShowHelp] = useState(false);
 
+  // Force-delete prestación con registros asociados
+  const [confirmDeletePrestId, setConfirmDeletePrestId] = useState<string | null>(null);
+  const confirmDeletePrest = prestaciones.find((p) => p.id === confirmDeletePrestId);
+
   const HELP_SECTIONS: HelpSection[] = [
     {
       icon: "📋",
@@ -174,12 +178,17 @@ export default function ConfiguracionPage() {
     const registros = getRegistros();
     const orphans = registros.filter((r) => r.prestacionId === id).length;
     if (orphans > 0) {
-      toast.warning(`Esta prestación tiene ${orphans} registro${orphans > 1 ? "s" : ""} asociado${orphans > 1 ? "s" : ""}. Elimínala solo si ya no la necesitas.`, { duration: 5000 });
+      setConfirmDeletePrestId(id);
       return;
     }
+    doDeletePrest(id);
+  }
+
+  function doDeletePrest(id: string) {
     const updated = prestaciones.filter((p) => p.id !== id);
     savePrestaciones(updated);
     setPrestaciones(updated);
+    setConfirmDeletePrestId(null);
     toast.success("Prestación eliminada");
   }
 
@@ -260,6 +269,47 @@ export default function ConfiguracionPage() {
           onClose={() => setShowHelp(false)}
         />
       )}
+
+      {/* Confirm force-delete prestación con registros */}
+      {confirmDeletePrestId && confirmDeletePrest && (() => {
+        const orphans = getRegistros().filter((r) => r.prestacionId === confirmDeletePrestId).length;
+        return (
+          <>
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" onClick={() => setConfirmDeletePrestId(null)} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+              <div className="relative w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 pointer-events-auto animate-fade-in">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                    <Trash2 className="w-4 h-4 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-100">¿Eliminar prestación?</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      <strong className="text-slate-300">{confirmDeletePrest.nombre}</strong> tiene{" "}
+                      <strong className="text-red-400">{orphans} registro{orphans !== 1 ? "s" : ""}</strong> asociado{orphans !== 1 ? "s" : ""}.
+                      Los registros históricos <em>no se borrarán</em>, pero quedarán sin prestación asignada.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => setConfirmDeletePrestId(null)}
+                    className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded-lg transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => doDeletePrest(confirmDeletePrestId)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-500/80 hover:bg-red-500 border border-red-500/50 rounded-lg transition-colors"
+                  >
+                    Eliminar de todos modos
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       <div className="flex items-start justify-between gap-3">
         <div>

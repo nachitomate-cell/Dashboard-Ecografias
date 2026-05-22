@@ -64,9 +64,19 @@ export default function CommandPalette() {
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50); }, [open]);
 
   function handleKey(e: React.KeyboardEvent) {
-    if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, filtered.length - 1)); }
-    if (e.key === "ArrowUp")   { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
-    if (e.key === "Enter" && filtered[cursor]) { filtered[cursor].action(); close(); }
+    if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, filtered.length - 1)); return; }
+    if (e.key === "ArrowUp")   { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); return; }
+    if (e.key === "Enter" && filtered[cursor]) { filtered[cursor].action(); close(); return; }
+
+    // Single-key shortcuts — only when search is empty and no modifier keys
+    if (!query && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+      const match = commands.find((c) => c.kbd === e.key.toUpperCase() || c.kbd === e.key);
+      if (match) {
+        e.preventDefault();
+        match.action();
+        close();
+      }
+    }
   }
 
   if (!open) return null;

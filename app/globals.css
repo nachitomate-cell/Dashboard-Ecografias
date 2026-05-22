@@ -116,3 +116,44 @@ body {
   background-image: radial-gradient(rgba(56,189,248,0.03) 1px, transparent 1px);
   background-size: 28px 28px;
 }
+
+/* ── Print styles ────────────────────────────────────── */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+  body { background: white !important; color: #0f172a !important; overflow: visible !important; }
+
+  /* Hide navigation / UI chrome */
+  aside,
+  .no-print,
+  [data-noprint] { display: none !important; }
+
+  main { overflow: visible !important; background: white !important; }
+
+  /* Lighten card backgrounds */
+  [class*="bg-slate-9"],
+  [class*="bg-slate-8"] { background-color: #f8fafc !important; }
+  [class*="border-slate"] { border-color: #e2e8f0 !important; }
+
+  /* Darken text for readability */
+  [class*="text-slate-1"],
+  [class*="text-slate-2"],
+  [class*="text-slate-3"] { color: #0f172a !important; }
+  [class*="text-slate-4"],
+  [class*="text-slate-5"],
+  [class*="text-slate-6"] { color: #475569 !important; }
+
+  /* Accent colours keep their hue */
+  [class*="text-sky-"]     { color: #0284c7 !important; }
+  [class*="text-emerald-"] { color: #059669 !important; }
+  [class*="text-amber-"]   { color: #d97706 !important; }
+  [class*="text-violet-"]  { color: #7c3aed !important; }
+  [class*="text-red-"]     { color: #dc2626 !important; }
+
+  /* Remove shadows */
+  * { box-shadow: none !important; }
+
+  /* Page break helpers */
+  .print-break-before { page-break-before: always; }
+  .print-avoid-break  { page-break-inside: avoid;  }
+}
