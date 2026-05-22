@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useCallback } from "react";
 import { X, HelpCircle } from "lucide-react";
 
 export interface HelpSection {
@@ -26,6 +27,15 @@ const HIGHLIGHT_STYLES: Record<string, { border: string; iconBg: string }> = {
 };
 
 export default function HelpModal({ title, subtitle, sections, onClose }: HelpModalProps) {
+  const handleKey = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape") onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [handleKey]);
+
   return (
     <>
       <div

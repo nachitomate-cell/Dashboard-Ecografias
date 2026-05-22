@@ -39,6 +39,7 @@ export default function ComparacionPage() {
   const [prestaciones, setPrestaciones] = useState<Prestacion[]>([]);
   const [liquidaciones, setLiquidaciones] = useState([] as ReturnType<typeof getLiquidaciones>);
   const [acuerdoPct,   setAcuerdoPct]   = useState(37);
+  const [nivelCalculo, setNivelCalculo] = useState<1 | 2 | 3>(1);
   const [precios,      setPrecios]      = useState<Record<string, number>>({});
   const [selectedPeriodo, setSelectedPeriodo] = useState("");
   // "todos" | "inteligente" | "soloFin"
@@ -116,6 +117,7 @@ export default function ComparacionPage() {
     setPrestaciones(prests);
     setLiquidaciones(liqs);
     setAcuerdoPct(cfg.acuerdoPct);
+    setNivelCalculo(cfg.nivelCalculo ?? 1);
     setPrecios(pm);
 
     // auto-select latest period with any data
@@ -369,15 +371,30 @@ export default function ComparacionPage() {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-100">Verificación de Honorarios</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-slate-100">Verificación de Honorarios</h1>
+            <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400">
+              Nivel {nivelCalculo}
+            </span>
+          </div>
           <p className="text-sm text-slate-500 mt-0.5">
             Contrasta los registros HIS con la liquidación para detectar diferencias en el pago
           </p>
         </div>
 
-        {/* Period selector */}
+        {/* Period selector + actions */}
         <div className="flex items-center gap-2">
           <HelpButton onClick={() => setShowHelp(true)} />
+          <button
+            onClick={() => window.print()}
+            title="Imprimir resumen"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-300 border border-slate-700 hover:border-slate-600 rounded-lg transition-all"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Imprimir
+          </button>
           <span className="text-xs text-slate-600">Período:</span>
           <select
             className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 outline-none focus:border-sky-500 cursor-pointer"

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity, BarChart2, GitCompare, Settings, HardDrive,
-  Search, ArrowRight, FileSpreadsheet, Download,
+  Search, ArrowRight, FileSpreadsheet, Download, TrendingUp,
 } from "lucide-react";
 
 interface Command {
@@ -42,14 +42,15 @@ export default function CommandPalette() {
   const close = useCallback(() => { setOpen(false); setQuery(""); setCursor(0); }, [setOpen]);
 
   const commands: Command[] = [
-    { id: "diario",       label: "Ir a Diario",        description: "Resumen diario y carga de archivos",       icon: Activity,       action: () => router.push("/diario"),        kbd: "D" },
-    { id: "mensual",      label: "Ir a Mensual",        description: "Resumen mensual y liquidación",             icon: BarChart2,      action: () => router.push("/mensual"),       kbd: "M" },
-    { id: "comparacion",  label: "Ir a Comparación",    description: "Análisis comparativo entre períodos",      icon: GitCompare,     action: () => router.push("/comparacion"),   kbd: "C" },
-    { id: "config",       label: "Ir a Configuración",  description: "Prestaciones, precios y meta mensual",     icon: Settings,       action: () => router.push("/configuracion"), kbd: "," },
-    { id: "uso",          label: "Ir a Almacenamiento", description: "Uso del localStorage",                     icon: HardDrive,      action: () => router.push("/uso"),           kbd: "S" },
-    { id: "carga",        label: "Cargar Excel HIS",    description: "Subir archivos de trabajo diario",         icon: FileSpreadsheet, action: () => router.push("/diario")        },
-    { id: "export-json",  label: "Exportar JSON",       description: "Descarga todos los datos del localStorage", icon: Download,       action: () => { close(); window.dispatchEvent(new CustomEvent("export-json")); } },
-    { id: "export-csv",   label: "Exportar CSV",        description: "Descarga registros como hoja de cálculo",  icon: Download,       action: () => { close(); window.dispatchEvent(new CustomEvent("export-csv"));  } },
+    { id: "diario",       label: "Ir a Diario",           description: "Resumen diario y carga de archivos HIS",   icon: Activity,        action: () => router.push("/diario"),        kbd: "D" },
+    { id: "mensual",      label: "Ir a Mensual",           description: "Resumen mensual, meta y liquidación",      icon: BarChart2,       action: () => router.push("/mensual"),       kbd: "M" },
+    { id: "verificacion", label: "Ir a Verificación",      description: "Comparar HIS vs liquidación por período",  icon: GitCompare,      action: () => router.push("/comparacion"),   kbd: "V" },
+    { id: "tendencia",    label: "Ir a Tendencia",         description: "Evolución histórica multi-mes",            icon: TrendingUp,      action: () => router.push("/tendencia"),     kbd: "T" },
+    { id: "config",       label: "Ir a Configuración",     description: "Prestaciones, precios, nivel y meta",      icon: Settings,        action: () => router.push("/configuracion"), kbd: "," },
+    { id: "uso",          label: "Ir a Almacenamiento",    description: "Uso del localStorage y limpiar datos",     icon: HardDrive,       action: () => router.push("/uso"),           kbd: "S" },
+    { id: "carga",        label: "Cargar Excel HIS",       description: "Importar archivos de trabajo diario",      icon: FileSpreadsheet, action: () => { close(); router.push("/diario"); } },
+    { id: "export-json",  label: "Exportar backup JSON",   description: "Descarga todos los datos del dashboard",   icon: Download,        action: () => { close(); window.dispatchEvent(new CustomEvent("export-json")); } },
+    { id: "export-csv",   label: "Exportar registros CSV", description: "Descarga registros para Excel/Sheets",     icon: Download,        action: () => { close(); window.dispatchEvent(new CustomEvent("export-csv"));  } },
   ];
 
   const filtered = query.trim()

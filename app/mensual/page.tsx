@@ -37,7 +37,7 @@ export default function MensualPage() {
   const [mesSeleccionado, setMesSeleccionado] = useState(new Date().getMonth());
   const [anioSeleccionado, setAnioSeleccionado] = useState(new Date().getFullYear());
   const [topeAPago, setTopeAPago] = useState(0);
-  const [topeConfig, setTopeConfig] = useState({ montoCLP: 6_300_000, acuerdoPct: 37 });
+  const [topeConfig, setTopeConfig] = useState({ montoCLP: 6_300_000, acuerdoPct: 37, nivelCalculo: 1 as 1 | 2 | 3 });
   const [showHelp, setShowHelp] = useState(false);
 
   const HELP_SECTIONS: HelpSection[] = [
@@ -228,7 +228,12 @@ export default function MensualPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-100">Resumen Mensual</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-slate-100">Resumen Mensual</h1>
+            <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400">
+              Nivel {topeConfig.nivelCalculo}
+            </span>
+          </div>
           <p className="text-sm text-slate-500 mt-0.5">{MONTH_NAMES[mesSeleccionado]} {anioSeleccionado}</p>
         </div>
         {/* Tabs */}

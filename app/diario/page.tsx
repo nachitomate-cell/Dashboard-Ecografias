@@ -5,11 +5,11 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { DollarSign, FileText, Clock, TrendingUp, Upload, UserCheck, UserX, UserMinus, CreditCard, ChevronLeft, ChevronRight } from "lucide-react";
+import { DollarSign, FileText, Clock, TrendingUp, Upload, UserCheck, UserX, UserMinus, CreditCard, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Trash2, AlertTriangle } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import UploadPanel from "@/components/UploadPanel";
 import HelpModal, { HelpButton, type HelpSection } from "@/components/HelpModal";
-import { getRegistros, getPrestaciones, getEstadosDia, type Registro, type Prestacion } from "@/lib/store";
+import { getRegistros, saveRegistros, getPrestaciones, getEstadosDia, type Registro, type Prestacion } from "@/lib/store";
 
 const COLORS = ["#38bdf8", "#818cf8", "#34d399", "#fb923c", "#f472b6", "#a78bfa"];
 const MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -35,6 +35,7 @@ export default function DiarioPage() {
   const [calAnio, setCalAnio] = useState(new Date().getFullYear());
   const [estadosMes, setEstadosMes] = useState({ finAtencion: 0, porRecaudar: 0, ausente: 0, eliminado: 0, enCaja: 0 });
   const [showHelp, setShowHelp] = useState(false);
+  const [showRegistrosTable, setShowRegistrosTable] = useState(false);
 
   const HELP_SECTIONS: HelpSection[] = [
     {
@@ -100,6 +101,12 @@ export default function DiarioPage() {
     });
   }
 
+  function handleDeleteRegistro(id: string) {
+    const updated = registros.filter((r) => r.id !== id);
+    saveRegistros(updated);
+    setRegistros(updated);
+  }
+
   useEffect(() => { reloadData(); }, [activeTab]);
   // Actualizar estadísticas cuando el usuario navega a otro mes en el calendario
   useEffect(() => { reloadData(calMes, calAnio); }, [calMes, calAnio]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -111,6 +118,24 @@ export default function DiarioPage() {
     acc[r.fecha].total += r.precioUnitario * r.cantidad;
     return acc;
   }, {} as Record<string, { count: number; total: number }>);
+
+  // Días hábiles recientes sin datos (últimos 5 días laborales excluyendo hoy)
+  const missingDays: string[] = (() => {
+    const missing: string[] = [];
+    const cursor = new Date(todayStr + "T12:00:00");
+    cursor.setDate(cursor.getDate() - 1);
+    let checked = 0;
+    while (checked < 5) {
+      const dow = cursor.getDay(); // 0=Dom, 6=Sáb
+      if (dow !== 0 && dow !== 6) {
+        const key = cursor.toISOString().split("T")[0];
+        if (!dateMap[key]) missing.push(key);
+        checked++;
+      }
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return missing.slice(0, 3); // máximo 3 avisos
+  })();
 
   // Día anterior al seleccionado
   const prevDate = new Date(selectedDate + "T12:00:00");
@@ -224,9 +249,29 @@ export default function DiarioPage() {
         </div>
       </div>
 
-      {activeTab === "carga" && <UploadPanel />}
+      {activeTab === "carga" && <UploadPanel onUploaded={() => reloadData()} />}
 
       {activeTab === "resumen" && <>
+
+      {/* Advertencia días sin datos */}
+      {missingDays.length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-amber-300 font-medium">Días laborales sin datos importados</p>
+            <p className="text-xs text-amber-400/70 mt-0.5">
+              {missingDays.map((d) => new Date(d + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })).join(", ")}
+              {" "}— ¿Olvidaste importar el HIS?
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab("carga")}
+            className="text-xs text-amber-400 hover:text-amber-300 font-medium shrink-0 transition-colors"
+          >
+            Importar →
+          </button>
+        </div>
+      )}
 
       {/* Calendario + KPIs en una fila */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -468,6 +513,75 @@ export default function DiarioPage() {
           <div className="flex items-center justify-center h-40 text-slate-600 text-sm">Sin registros para {selLabel.toLowerCase()}</div>
         )}
       </div>
+
+      {/* Tabla de registros colapsable */}
+      {selRegs.length > 0 && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+          <button
+            onClick={() => setShowRegistrosTable((v) => !v)}
+            className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-800/40 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <FileText className="w-4 h-4 text-slate-500" />
+              <span className="text-sm font-medium text-slate-300">Registros del día — {selLabel}</span>
+              <span className="px-2 py-0.5 text-xs bg-slate-800 border border-slate-700 rounded-full text-slate-400 tabular-nums">
+                {selRegs.length}
+              </span>
+            </div>
+            {showRegistrosTable ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+          </button>
+
+          {showRegistrosTable && (
+            <div className="border-t border-slate-800">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800">
+                      <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Prestación</th>
+                      <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Estado</th>
+                      <th className="text-right px-4 py-2.5 text-slate-500 font-medium">Precio</th>
+                      <th className="px-4 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selRegs.map((reg) => {
+                      const prest = prestaciones.find((p) => p.id === reg.prestacionId);
+                      return (
+                        <tr key={reg.id} className="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors group">
+                          <td className="px-4 py-2.5 text-slate-300">{prest?.nombre ?? reg.prestacionId}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                              reg.estado === "finAtencion"
+                                ? "bg-emerald-500/10 text-emerald-400"
+                                : "bg-violet-500/10 text-violet-400"
+                            }`}>
+                              {reg.estado === "finAtencion" ? "Fin Atención" : "Por Recaudar"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-slate-300 tabular-nums">{fmt(reg.precioUnitario)}</td>
+                          <td className="px-4 py-2.5 text-right">
+                            <button
+                              onClick={() => handleDeleteRegistro(reg.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-red-400 rounded transition-all"
+                              title="Eliminar registro"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-4 py-2.5 border-t border-slate-800 flex justify-between text-xs text-slate-500">
+                <span>Total del día</span>
+                <span className="text-slate-300 font-medium tabular-nums">{fmt(totalSel)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       </>}
     </div>
   );

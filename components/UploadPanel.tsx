@@ -7,7 +7,7 @@ import {
   DollarSign, Users, Import, Trash2,
 } from "lucide-react";
 import clsx from "clsx";
-import { parseExcelFile, buildDayReport, type DayReport } from "@/lib/parseExcel";
+import { parseExcelFile, buildDayReport, validateHISFormat, type DayReport } from "@/lib/parseExcel";
 import { getPrestaciones, getPrecios, getRegistros, saveRegistros, upsertEstadoDia, getTopeConfig, type Registro } from "@/lib/store";
 import { toast } from "@/lib/toast";
 
@@ -191,23 +191,24 @@ function DayCard({ report, onImport, imported, isDuplicate }: {
 }
 
 // ── Componente principal ────────────────────────────────────────
-export default function UploadPanel() {
+export default function UploadPanel({ onUploaded }: { onUploaded?: () => void } = {}) {
   const [reports, setReports] = useState<DayReport[]>([]);
   const [imported, setImported] = useState<Set<string>>(new Set());
   const [duplicates, setDuplicates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [loadProgress, setLoadProgress] = useState({ current: 0, total: 0, fileName: "" });
   const [dragOver, setDragOver] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const undoSnapshotRef = useRef<Registro[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const processFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     if (files.length > MAX_FILES) {
-      setError(`Máximo ${MAX_FILES} archivos permitidos. Seleccionaste ${files.length}.`);
+      setErrors([`Máximo ${MAX_FILES} archivos permitidos. Seleccionaste ${files.length}.`]);
       return;
     }
-    setError(null);
+    setErrors([]);
     setLoading(true);
 
     const prestaciones = getPrestaciones();
@@ -218,53 +219,55 @@ export default function UploadPanel() {
         precios[p.prestacionId] = p.precio;
       }
     });
-    // fallback: cualquier nivel disponible
     getPrecios().forEach((p) => {
       if (!precios[p.prestacionId]) precios[p.prestacionId] = p.precio;
     });
 
     const results: DayReport[] = [];
+    const validationErrors: string[] = [];
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setLoadProgress({ current: i, total: files.length, fileName: file.name });
-      await new Promise((r) => setTimeout(r, 30)); // allow UI update
+      await new Promise((r) => setTimeout(r, 30));
 
       try {
         const buffer = await file.arrayBuffer();
+
+        // #2 Validar formato HIS antes de parsear
+        const validation = validateHISFormat(buffer, file.name);
+        if (!validation.valid) {
+          validationErrors.push(validation.error ?? `${file.name}: formato inválido.`);
+          continue; // skip file
+        }
+
         const parsed = parseExcelFile(buffer, file.name);
         const report = buildDayReport(parsed, prestaciones, precios);
         results.push(report);
       } catch {
-        results.push({
-          fecha: file.name,
-          fileName: file.name,
-          total: 0, matched: 0, unmatched: 0, ingresoEstimado: 0,
-          examenes: [], sinMatchNombres: [],
-          statusCounts: { finAtencion: 0, porRecaudar: 0, ausente: 0, eliminado: 0, enCaja: 0, otros: 0 },
-        });
+        validationErrors.push(`${file.name}: error al procesar el archivo.`);
       }
     }
 
     setLoadProgress({ current: files.length, total: files.length, fileName: "" });
     await new Promise((r) => setTimeout(r, 400));
 
-    results.sort((a, b) => a.fecha.localeCompare(b.fecha));
+    if (validationErrors.length > 0) setErrors(validationErrors);
 
-    // Detectar fechas que ya tienen registros importados
-    const existingRegs = getRegistros();
-    const dupSet = new Set<string>();
-    results.forEach((r) => {
-      if (existingRegs.some((reg) => reg.id.startsWith(`imp_${r.fecha}_`))) {
-        dupSet.add(r.fecha);
-      }
-    });
-    setDuplicates(dupSet);
-
-    setReports((prev) => {
-      const existing = new Map(prev.map((r) => [r.fecha, r]));
-      results.forEach((r) => existing.set(r.fecha, r));
-      return Array.from(existing.values()).sort((a, b) => a.fecha.localeCompare(b.fecha));
-    });
+    if (results.length > 0) {
+      results.sort((a, b) => a.fecha.localeCompare(b.fecha));
+      const existingRegs = getRegistros();
+      const dupSet = new Set<string>();
+      results.forEach((r) => {
+        if (existingRegs.some((reg) => reg.id.startsWith(`imp_${r.fecha}_`))) dupSet.add(r.fecha);
+      });
+      setDuplicates(dupSet);
+      setReports((prev) => {
+        const existing = new Map(prev.map((r) => [r.fecha, r]));
+        results.forEach((r) => existing.set(r.fecha, r));
+        return Array.from(existing.values()).sort((a, b) => a.fecha.localeCompare(b.fecha));
+      });
+    }
     setLoading(false);
   }, []);
 
@@ -284,47 +287,66 @@ export default function UploadPanel() {
   function handleImport(report: DayReport) {
     const existing = getRegistros();
 
-    // Detectar Por Recaudar multi-día: misma combinación paciente+examen ya importada en otro día
-    const porRecaudarNuevos = report.examenes.filter((e) => e.estado === "porRecaudar");
-    const multiDiaDups = porRecaudarNuevos.filter((e) => {
-      return existing.some(
-        (r) => r.estado === "porRecaudar" &&
-               r.fecha !== report.fecha &&
-               // No podemos comparar paciente directamente (no está en Registro),
-               // pero podemos comparar por prestacionId + precio (proxy razonable)
-               r.prestacionId === e.prestacionId &&
-               r.precioUnitario === e.precio
-      );
-    });
+    // Guardar snapshot para undo (#5)
+    undoSnapshotRef.current = existing;
 
-    const newRegs: Registro[] = report.examenes
+    // #3 Deduplicación Por Recaudar multi-día por paciente+prestación
+    // Build set of existing Por Recaudar fingerprints (paciente+prestacionId) from other days in same month
+    const mesActual = report.fecha.slice(0, 7);
+    const existingPRFingerprints = new Set(
+      existing
+        .filter((r) => r.estado === "porRecaudar" && r.fecha !== report.fecha && r.fecha.startsWith(mesActual) && r.paciente)
+        .map((r) => `${r.paciente}|${r.prestacionId}`)
+    );
+
+    let skippedPR = 0;
+    const newRegs: Registro[] = [];
+    report.examenes
       .filter((e) => e.prestacionId && e.precio > 0)
-      .map((e, i) => ({
-        id: `imp_${report.fecha}_${i}_${Date.now()}`,
-        prestacionId: e.prestacionId!,
-        fecha: report.fecha,
-        cantidad: 1,
-        precioUnitario: e.precio,
-        estado: e.estado,
-        orden: e.row.orden !== "0" ? e.row.orden : undefined,
-      }));
+      .forEach((e, i) => {
+        // Para Por Recaudar, verificar si ya existe el mismo paciente+prestación en este mes
+        if (e.estado === "porRecaudar") {
+          const fp = `${e.row.paciente}|${e.prestacionId}`;
+          if (existingPRFingerprints.has(fp)) {
+            skippedPR++;
+            return; // omitir duplicado multi-día
+          }
+        }
+        newRegs.push({
+          id: `imp_${report.fecha}_${i}_${Date.now()}`,
+          prestacionId: e.prestacionId!,
+          fecha: report.fecha,
+          cantidad: 1,
+          precioUnitario: e.precio,
+          estado: e.estado,
+          orden: e.row.orden !== "0" ? e.row.orden : undefined,
+          // Guardar paciente solo en porRecaudar para dedup futuro (#3)
+          paciente: e.estado === "porRecaudar" ? e.row.paciente : undefined,
+        });
+      });
 
-    // Eliminar registros previos del mismo día importados, agregar nuevos
     const filtered = existing.filter((r) => !r.id.startsWith(`imp_${report.fecha}_`));
     saveRegistros([...filtered, ...newRegs]);
     upsertEstadoDia({ fecha: report.fecha, ...report.statusCounts });
     setImported((prev) => new Set([...prev, report.fecha]));
-    const label = new Date(report.fecha + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" });
+    onUploaded?.();
 
-    if (multiDiaDups.length > 0) {
-      toast.success(`${report.total} exámenes importados — ${label}`);
-      // Aviso separado para multi-día (no bloquea el import, solo informa)
-      setTimeout(() => {
-        toast.success(`⚠ ${multiDiaDups.length} exámen(es) Por Recaudar pueden ya estar importados de otro día`);
-      }, 400);
-    } else {
-      toast.success(`${report.total} exámenes importados — ${label}`);
-    }
+    const label = new Date(report.fecha + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" });
+    const skippedMsg = skippedPR > 0 ? ` · ${skippedPR} Por Recaudar duplicados omitidos` : "";
+    toast.success(`${newRegs.length} exámenes importados — ${label}${skippedMsg}`, {
+      // #5 Undo action
+      action: {
+        label: "Deshacer",
+        onClick: () => {
+          if (undoSnapshotRef.current) {
+            saveRegistros(undoSnapshotRef.current);
+            setImported((prev) => { const s = new Set(prev); s.delete(report.fecha); return s; });
+            toast.success(`Import de ${label} deshecho`);
+            undoSnapshotRef.current = null;
+          }
+        },
+      },
+    });
   }
 
   function handleImportAll() {
@@ -337,6 +359,7 @@ export default function UploadPanel() {
     setReports([]);
     setImported(new Set());
     setDuplicates(new Set());
+    setErrors([]);
   }
 
   const totalAtendidos = reports.reduce((s, r) => s + r.total, 0);
@@ -385,10 +408,14 @@ export default function UploadPanel() {
           </p>
         </div>
 
-        {error && (
-          <div className="flex items-center gap-2 text-red-400 text-xs bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            {error}
+        {errors.length > 0 && (
+          <div className="w-full space-y-1.5 mt-1">
+            {errors.map((err, i) => (
+              <div key={i} className="flex items-start gap-2 text-red-400 text-xs bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>{err}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>

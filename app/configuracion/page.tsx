@@ -9,6 +9,7 @@ import {
   savePrestaciones,
   getPrecios,
   savePrecios,
+  getRegistros,
   resetToArancelDefaults,
   clearOperationalData,
   clearAllData,
@@ -20,6 +21,8 @@ import {
   type PrecioPrestacion,
 } from "@/lib/store";
 import clsx from "clsx";
+
+const COLORS = ["#38bdf8", "#818cf8", "#34d399", "#fb923c", "#f472b6", "#a78bfa", "#facc15", "#4ade80", "#f87171", "#c084fc"];
 
 function fmt(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -168,9 +171,16 @@ export default function ConfiguracionPage() {
   }
 
   function handleDeletePrest(id: string) {
+    const registros = getRegistros();
+    const orphans = registros.filter((r) => r.prestacionId === id).length;
+    if (orphans > 0) {
+      toast.warning(`Esta prestación tiene ${orphans} registro${orphans > 1 ? "s" : ""} asociado${orphans > 1 ? "s" : ""}. Elimínala solo si ya no la necesitas.`, { duration: 5000 });
+      return;
+    }
     const updated = prestaciones.filter((p) => p.id !== id);
     savePrestaciones(updated);
     setPrestaciones(updated);
+    toast.success("Prestación eliminada");
   }
 
   function startEditPrest(p: Prestacion) {
@@ -735,5 +745,3 @@ export default function ConfiguracionPage() {
     </div>
   );
 }
-
-const COLORS = ["#38bdf8", "#818cf8", "#34d399", "#fb923c", "#f472b6", "#a78bfa", "#facc15", "#4ade80", "#f87171", "#c084fc"];

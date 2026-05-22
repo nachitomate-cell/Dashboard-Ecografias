@@ -51,6 +51,42 @@ export interface DayReport {
 }
 
 // -----------------------------------------------------------
+// 0. Validación de formato HIS antes de parsear
+// -----------------------------------------------------------
+export interface HISValidation {
+  valid: boolean;
+  error?: string;
+}
+
+export function validateHISFormat(buffer: ArrayBuffer, fileName: string): HISValidation {
+  try {
+    const wb = XLSX.read(buffer, { type: "array" });
+    if (!wb.SheetNames.length) return { valid: false, error: `${fileName}: el archivo no contiene hojas.` };
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false }) as (string | null)[][];
+
+    // Necesitamos al menos 3 filas (título, encabezado, datos)
+    if (raw.length < 2) return { valid: false, error: `${fileName}: el archivo parece estar vacío.` };
+
+    // Fila 1 (índice 1) debe tener los encabezados HIS
+    const header = (raw[1] ?? []).map((c) => String(c ?? "").toLowerCase());
+    const hasReserva  = header.some((h) => h.includes("reserva") || h.includes("llegada"));
+    const hasPaciente = header.some((h) => h.includes("paciente"));
+    const hasExamen   = header.some((h) => h.includes("examen") || h.includes("estudio"));
+
+    if (!hasReserva || !hasPaciente || !hasExamen) {
+      return {
+        valid: false,
+        error: `${fileName}: no parece ser un archivo HIS válido. Se esperan columnas de Hr.Reserva, Paciente y Examen.`,
+      };
+    }
+    return { valid: true };
+  } catch {
+    return { valid: false, error: `${fileName}: no se pudo leer el archivo. Verifica que no esté dañado.` };
+  }
+}
+
+// -----------------------------------------------------------
 // 1. Parser de fecha desde el nombre de archivo DD-MM-YYYY
 // -----------------------------------------------------------
 export function fechaDesdeNombre(fileName: string): string | null {

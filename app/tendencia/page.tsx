@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, Cell,
@@ -78,29 +78,33 @@ const HELP_SECTIONS: HelpSection[] = [
 ];
 
 export default function TendenciaPage() {
-  const [rows, setRows] = useState<MonthData[]>([]);
-  const [tope, setTope] = useState(6_300_000);
-  const [acuerdoPct, setAcuerdoPct] = useState(37);
-  const [showHelp, setShowHelp] = useState(false);
+  const [rawRegistros, setRawRegistros] = useState<ReturnType<typeof getRegistros>>([]);
+  const [rawLiqs,      setRawLiqs]      = useState<ReturnType<typeof getLiquidaciones>>([]);
+  const [tope,         setTope]         = useState(6_300_000);
+  const [acuerdoPct,   setAcuerdoPct]   = useState(37);
+  const [showHelp,     setShowHelp]     = useState(false);
 
   useEffect(() => {
     const registros = getRegistros();
     const liqs      = getLiquidaciones();
     const cfg       = getTopeConfig();
+    setRawRegistros(registros);
+    setRawLiqs(liqs);
     setTope(cfg.montoCLP);
     setAcuerdoPct(cfg.acuerdoPct);
+  }, []);
 
-    // Collect all periods with any data
-    const hisPeriods = new Set(registros.map((r) => r.fecha.slice(0, 7)));
-    const liqPeriods = new Set(liqs.map((l) => l.periodo));
+  const rows = useMemo<MonthData[]>(() => {
+    const hisPeriods = new Set(rawRegistros.map((r) => r.fecha.slice(0, 7)));
+    const liqPeriods = new Set(rawLiqs.map((l) => l.periodo));
     const allPeriods = [...new Set([...hisPeriods, ...liqPeriods])].sort();
 
-    const data: MonthData[] = allPeriods.map((periodo) => {
-      const regs = registros.filter((r) => r.fecha.startsWith(periodo));
+    return allPeriods.map((periodo) => {
+      const regs = rawRegistros.filter((r) => r.fecha.startsWith(periodo));
       const hisValor = regs.reduce((s, r) => s + r.precioUnitario * r.cantidad, 0);
-      const hisAPago = Math.round(hisValor * cfg.acuerdoPct / 100);
+      const hisAPago = Math.round(hisValor * acuerdoPct / 100);
 
-      const liq = liqs.find((l) => l.periodo === periodo);
+      const liq = rawLiqs.find((l) => l.periodo === periodo);
       const liqAPago = liq ? liq.rows.reduce((s, r) => s + r.aPago, 0) : null;
 
       const delta = liq && hisAPago > 0 ? liqAPago! - hisAPago : null;
@@ -116,12 +120,10 @@ export default function TendenciaPage() {
         hasLiq: !!liq,
         delta,
         pctDelta,
-        topeAlcanzado: (liqAPago ?? hisAPago) >= cfg.montoCLP,
+        topeAlcanzado: (liqAPago ?? hisAPago) >= tope,
       };
-    });
-
-    setRows(data.slice(-12)); // last 12 months max
-  }, []);
+    }).slice(-12); // last 12 months max
+  }, [rawRegistros, rawLiqs, acuerdoPct, tope]);
 
   const hasAnyLiq = rows.some((r) => r.hasLiq);
   const topeColor = "#64748b";

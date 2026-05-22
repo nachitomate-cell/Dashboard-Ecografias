@@ -20,6 +20,7 @@ const STYLES: Record<ToastType, { border: string; icon: string; bar: string }> =
 
 interface ActiveToast extends ToastPayload {
   exiting: boolean;
+  action?: import("@/lib/toast").ToastAction;
 }
 
 export default function ToastContainer() {
@@ -32,8 +33,8 @@ export default function ToastContainer() {
 
   useEffect(() => {
     function handler(e: Event) {
-      const { id, message, type, duration } = (e as CustomEvent<ToastPayload>).detail;
-      setToasts((prev) => [...prev.slice(-4), { id, message, type, duration, exiting: false }]);
+      const { id, message, type, duration, action } = (e as CustomEvent<ToastPayload>).detail;
+      setToasts((prev) => [...prev.slice(-4), { id, message, type, duration, action, exiting: false }]);
       setTimeout(() => remove(id), duration);
     }
     window.addEventListener("app-toast", handler);
@@ -59,8 +60,18 @@ export default function ToastContainer() {
             ].join(" ")}
           >
             <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${s.icon}`} />
-            <p className="text-sm text-slate-200 flex-1 leading-snug">{t.message}</p>
-            <button onClick={() => remove(t.id)} className="text-slate-600 hover:text-slate-300 transition-colors mt-0.5">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-slate-200 leading-snug">{t.message}</p>
+              {t.action && (
+                <button
+                  onClick={() => { t.action!.onClick(); remove(t.id); }}
+                  className={`mt-1 text-xs font-medium underline underline-offset-2 ${s.icon} hover:opacity-80 transition-opacity`}
+                >
+                  {t.action.label}
+                </button>
+              )}
+            </div>
+            <button onClick={() => remove(t.id)} className="text-slate-600 hover:text-slate-300 transition-colors mt-0.5 shrink-0">
               <X className="w-3.5 h-3.5" />
             </button>
             {/* progress bar */}
