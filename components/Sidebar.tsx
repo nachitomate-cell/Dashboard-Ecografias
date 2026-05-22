@@ -10,14 +10,16 @@ import {
   Settings,
   Stethoscope,
   HardDrive,
+  TrendingUp,
 } from "lucide-react";
 import clsx from "clsx";
 import { getStorageUsage } from "@/lib/store";
 
 const nav = [
-  { href: "/diario",     label: "Diario",      icon: Activity   },
-  { href: "/mensual",    label: "Mensual",      icon: BarChart2  },
-  { href: "/comparacion",label: "Comparación",  icon: GitCompare },
+  { href: "/diario",     label: "Diario",      icon: Activity    },
+  { href: "/mensual",    label: "Mensual",      icon: BarChart2   },
+  { href: "/comparacion",label: "Verificación", icon: GitCompare  },
+  { href: "/tendencia",  label: "Tendencia",    icon: TrendingUp  },
 ];
 
 function fmtBytes(b: number): string {

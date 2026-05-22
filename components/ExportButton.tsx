@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Download, FileJson, FileText, X, Check, Upload, AlertTriangle } from "lucide-react";
 import {
   getRegistros, getPrestaciones, getPrecios, getLiquidaciones, getEstadosDia, getTopeConfig,
@@ -20,12 +20,28 @@ interface BackupPayload {
   topeConfig: TopeConfig;
 }
 
+const BACKUP_KEY = "ecografia_last_backup";
+
+function daysSinceBackup(): number | null {
+  try {
+    const ts = localStorage.getItem(BACKUP_KEY);
+    if (!ts) return null;
+    const diff = Date.now() - new Date(ts).getTime();
+    return Math.floor(diff / (1000 * 60 * 60 * 24));
+  } catch { return null; }
+}
+
 export default function ExportButton() {
   const [open, setOpen]           = useState(false);
   const [done, setDone]           = useState<"json" | "csv" | null>(null);
   const [restoreStatus, setRestoreStatus] = useState<"idle" | "ok" | "error">("idle");
   const [restoreMsg, setRestoreMsg]       = useState("");
+  const [backupDays, setBackupDays]       = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setBackupDays(daysSinceBackup());
+  }, [open]);
 
   function triggerDone(type: "json" | "csv") {
     setDone(type);
@@ -45,6 +61,8 @@ export default function ExportButton() {
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     download(blob, `ecografia_backup_${today()}.json`);
+    try { localStorage.setItem(BACKUP_KEY, new Date().toISOString()); } catch { /* ignore */ }
+    setBackupDays(0);
     triggerDone("json");
   }
 
@@ -214,7 +232,25 @@ export default function ExportButton() {
             </div>
           </div>
 
-          <div className="px-4 py-3 border-t border-slate-800 bg-slate-950/40">
+          <div className="px-4 py-3 border-t border-slate-800 bg-slate-950/40 space-y-2">
+            {(backupDays === null || backupDays >= 7) && (
+              <div className={clsx(
+                "flex items-center gap-2 px-3 py-2 rounded-lg text-xs",
+                backupDays === null
+                  ? "bg-red-500/10 border border-red-500/20 text-red-400"
+                  : "bg-amber-500/10 border border-amber-500/20 text-amber-400"
+              )}>
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {backupDays === null
+                  ? "Sin backup registrado. Exporta el backup JSON para proteger tus datos."
+                  : `Último backup hace ${backupDays} días. Se recomienda hacerlo cada semana.`}
+              </div>
+            )}
+            {backupDays !== null && backupDays < 7 && (
+              <p className="text-xs text-slate-600">
+                Último backup hace {backupDays === 0 ? "menos de un día" : `${backupDays} día${backupDays > 1 ? "s" : ""}`}.
+              </p>
+            )}
             <p className="text-xs text-slate-600">
               Los datos se exportan desde el almacenamiento local de este navegador.
             </p>
@@ -225,7 +261,7 @@ export default function ExportButton() {
       <button
         onClick={() => setOpen((v) => !v)}
         className={clsx(
-          "fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg transition-all duration-200 font-medium text-sm",
+          "fixed bottom-6 right-6 z-50 relative flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg transition-all duration-200 font-medium text-sm",
           open
             ? "bg-slate-700 text-slate-300 shadow-slate-900/60"
             : "bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/30 hover:shadow-sky-400/40 hover:scale-105"
@@ -233,6 +269,17 @@ export default function ExportButton() {
       >
         <Download className="w-4 h-4" />
         Exportar
+        {/* Backup warning badge */}
+        {!open && backupDays !== null && backupDays >= 7 && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 border-2 border-slate-950 flex items-center justify-center text-[9px] font-bold text-slate-900">
+            !
+          </span>
+        )}
+        {!open && backupDays === null && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-slate-950 flex items-center justify-center text-[9px] font-bold text-white">
+            !
+          </span>
+        )}
       </button>
     </>
   );

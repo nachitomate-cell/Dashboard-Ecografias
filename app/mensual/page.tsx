@@ -125,6 +125,32 @@ export default function MensualPage() {
   const pctIngresos = totalAnterior > 0 ? (((totalMes - totalAnterior) / totalAnterior) * 100).toFixed(1) : null;
   const pctPrestaciones = cantAnterior > 0 ? (((cantMes - cantAnterior) / cantAnterior) * 100).toFixed(1) : null;
 
+  // ── Proyección del mes ─────────────────────────────────────────
+  const hoy = new Date();
+  const esEsteMes = hoy.getMonth() === mesSeleccionado && hoy.getFullYear() === anioSeleccionado;
+  const diasEnMesTotal = new Date(anioSeleccionado, mesSeleccionado + 1, 0).getDate();
+  const diasTranscurridos = esEsteMes ? hoy.getDate() : diasEnMesTotal;
+  const diasRestantes = esEsteMes ? diasEnMesTotal - diasTranscurridos : 0;
+
+  // Días distintos con registros (días efectivamente trabajados)
+  const diasConDatos = new Set(regsDelMes.map((r) => r.fecha)).size;
+  const ritmoHisPorDia = diasConDatos > 0 ? totalMes / diasConDatos : 0;
+
+  // Estimación de días hábiles restantes del mes (aprox lun-vie)
+  let diasHabilesRestantes = 0;
+  if (esEsteMes) {
+    for (let d = diasTranscurridos + 1; d <= diasEnMesTotal; d++) {
+      const dow = new Date(anioSeleccionado, mesSeleccionado, d).getDay();
+      if (dow !== 0 && dow !== 6) diasHabilesRestantes++;
+    }
+  }
+
+  const proyeccionHis = totalMes + ritmoHisPorDia * diasHabilesRestantes;
+  const proyeccionAPago = Math.round(proyeccionHis * topeConfig.acuerdoPct / 100);
+  const topeActual = topeConfig.montoCLP;
+  const faltaParaTope = Math.max(0, topeActual - proyeccionAPago);
+  const llegaraTope = proyeccionAPago >= topeActual;
+
   // Ingresos por semana del mes — T12:00:00 evita desfase UTC-4 en Chile
   const semanas: Record<number, number> = {};
   regsDelMes.forEach((r) => {
@@ -342,6 +368,61 @@ export default function MensualPage() {
           </div>
         );
       })()}
+
+      {/* Proyección del mes — solo si es el mes actual y hay datos */}
+      {esEsteMes && diasConDatos > 0 && (
+        <div className={`rounded-xl border p-5 space-y-4 ${llegaraTope ? "border-emerald-500/20 bg-emerald-500/5" : "border-sky-500/20 bg-sky-500/5"}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className={`w-4 h-4 ${llegaraTope ? "text-emerald-400" : "text-sky-400"}`} />
+              <p className="text-sm font-medium text-slate-300">Proyección al cierre del mes</p>
+              <span className="text-xs text-slate-600 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full">
+                basado en {diasConDatos} días trabajados
+              </span>
+            </div>
+            {llegaraTope
+              ? <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">🎯 Tope alcanzable</span>
+              : <span className="text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">Faltan {fmt(faltaParaTope)}</span>
+            }
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Ritmo HIS / día", value: fmt(ritmoHisPorDia), sub: "promedio días trabajados" },
+              { label: "Días hábiles restantes", value: String(diasHabilesRestantes), sub: `de ${diasEnMesTotal} días en el mes` },
+              { label: "HIS proyectado", value: fmt(proyeccionHis), sub: "si el ritmo se mantiene" },
+              { label: "A Pago proyectado", value: fmt(proyeccionAPago), sub: `${topeConfig.acuerdoPct}% del proyectado`, highlight: true },
+            ].map(({ label, value, sub, highlight }) => (
+              <div key={label} className="rounded-lg border border-slate-800/60 bg-slate-900/60 px-3 py-3">
+                <p className="text-xs text-slate-600 truncate">{label}</p>
+                <p className={`text-base font-semibold tabular-nums mt-0.5 ${highlight ? (llegaraTope ? "text-emerald-400" : "text-sky-400") : "text-slate-200"}`}>
+                  {value}
+                </p>
+                <p className="text-xs text-slate-600 mt-0.5">{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Barra de proyección vs tope */}
+          <div>
+            <div className="flex justify-between text-xs text-slate-600 mb-1">
+              <span>Hoy: {fmt(Math.round(totalMes * topeConfig.acuerdoPct / 100))}</span>
+              <span>Proyectado: {fmt(proyeccionAPago)} · Tope: {fmt(topeActual)}</span>
+            </div>
+            <div className="relative h-2 bg-slate-800 rounded-full overflow-hidden">
+              {/* Barra actual */}
+              <div className="absolute h-full rounded-full bg-sky-500/60 transition-all duration-700"
+                style={{ width: `${Math.min(100, (totalMes * topeConfig.acuerdoPct / 100 / topeActual) * 100)}%` }} />
+              {/* Barra proyectada */}
+              <div className={`absolute h-full rounded-full opacity-30 transition-all duration-700 ${llegaraTope ? "bg-emerald-400" : "bg-sky-400"}`}
+                style={{ width: `${Math.min(100, (proyeccionAPago / topeActual) * 100)}%` }} />
+            </div>
+            <p className="text-xs text-slate-700 mt-1">
+              La zona más oscura es el acumulado real · La zona clara es la proyección
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Ingresos diarios */}
       <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
