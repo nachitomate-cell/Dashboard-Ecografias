@@ -1,13 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { Download, FileJson, FileText, X, Check } from "lucide-react";
-import { getRegistros, getPrestaciones, getPrecios } from "@/lib/store";
+import { useRef, useState } from "react";
+import { Download, FileJson, FileText, X, Check, Upload, AlertTriangle } from "lucide-react";
+import {
+  getRegistros, getPrestaciones, getPrecios, getLiquidaciones, getEstadosDia, getTopeConfig,
+  saveRegistros, savePrestaciones, savePrecios, saveLiquidaciones, saveTopeConfig, upsertEstadoDia,
+  type Registro, type Prestacion, type PrecioPrestacion, type Liquidacion, type EstadoDia, type TopeConfig,
+} from "@/lib/store";
 import clsx from "clsx";
 
+interface BackupPayload {
+  version: number;
+  exportadoEn: string;
+  prestaciones: Prestacion[];
+  precios: PrecioPrestacion[];
+  registros: Registro[];
+  liquidaciones: Liquidacion[];
+  estadosDia: EstadoDia[];
+  topeConfig: TopeConfig;
+}
+
 export default function ExportButton() {
-  const [open, setOpen] = useState(false);
-  const [done, setDone] = useState<"json" | "csv" | null>(null);
+  const [open, setOpen]           = useState(false);
+  const [done, setDone]           = useState<"json" | "csv" | null>(null);
+  const [restoreStatus, setRestoreStatus] = useState<"idle" | "ok" | "error">("idle");
+  const [restoreMsg, setRestoreMsg]       = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function triggerDone(type: "json" | "csv") {
     setDone(type);
@@ -15,25 +33,29 @@ export default function ExportButton() {
   }
 
   function exportJSON() {
-    const payload = {
+    const payload: BackupPayload = {
+      version: 2,
       exportadoEn: new Date().toISOString(),
       prestaciones: getPrestaciones(),
-      precios: getPrecios(),
-      registros: getRegistros(),
+      precios:      getPrecios(),
+      registros:    getRegistros(),
+      liquidaciones: getLiquidaciones(),
+      estadosDia:   getEstadosDia(),
+      topeConfig:   getTopeConfig(),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    download(blob, `ecografia_datos_${today()}.json`);
+    download(blob, `ecografia_backup_${today()}.json`);
     triggerDone("json");
   }
 
   function exportCSV() {
-    const registros = getRegistros();
+    const registros    = getRegistros();
     const prestaciones = getPrestaciones();
 
-    const nombrePrest = (id: string) => prestaciones.find((p) => p.id === id)?.nombre ?? id;
+    const nombrePrest    = (id: string) => prestaciones.find((p) => p.id === id)?.nombre ?? id;
     const categoriaPrest = (id: string) => prestaciones.find((p) => p.id === id)?.categoria ?? "";
 
-    const header = ["ID", "Fecha", "Prestacion", "Categoria", "Cantidad", "Precio Unitario", "Total"];
+    const header = ["ID", "Fecha", "Prestacion", "Categoria", "Estado", "Orden", "Cantidad", "Precio Unitario", "Total"];
     const rows = registros
       .sort((a, b) => b.fecha.localeCompare(a.fecha))
       .map((r) => [
@@ -41,13 +63,15 @@ export default function ExportButton() {
         r.fecha,
         nombrePrest(r.prestacionId),
         categoriaPrest(r.prestacionId),
+        r.estado ?? "finAtencion",
+        r.orden ?? "",
         r.cantidad,
         r.precioUnitario,
         r.precioUnitario * r.cantidad,
       ]);
 
-    const total = rows.reduce((s, r) => s + (r[6] as number), 0);
-    rows.push(["", "", "", "", "", "TOTAL", total]);
+    const total = rows.reduce((s, r) => s + (r[8] as number), 0);
+    rows.push(["", "", "", "", "", "", "", "TOTAL", total]);
 
     const csv = [header, ...rows]
       .map((row) => row.map((c) => `"${c}"`).join(","))
@@ -58,9 +82,49 @@ export default function ExportButton() {
     triggerDone("csv");
   }
 
+  function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const payload = JSON.parse(ev.target?.result as string) as Partial<BackupPayload>;
+        // Validación básica
+        if (!payload.version || !Array.isArray(payload.registros)) {
+          throw new Error("Archivo inválido o formato incorrecto");
+        }
+        // Restaurar datos
+        if (payload.prestaciones) savePrestaciones(payload.prestaciones);
+        if (payload.precios)      savePrecios(payload.precios);
+        if (payload.registros)    saveRegistros(payload.registros);
+        if (payload.liquidaciones) saveLiquidaciones(payload.liquidaciones);
+        if (payload.topeConfig)   saveTopeConfig(payload.topeConfig as TopeConfig);
+        // estadosDia: upsert cada uno
+        if (Array.isArray(payload.estadosDia)) {
+          payload.estadosDia.forEach((d: EstadoDia) => upsertEstadoDia(d));
+        }
+        const nRegs = payload.registros?.length ?? 0;
+        const nLiqs = payload.liquidaciones?.length ?? 0;
+        setRestoreStatus("ok");
+        setRestoreMsg(`Restaurado: ${nRegs} registros · ${nLiqs} liquidaciones`);
+        setTimeout(() => {
+          setRestoreStatus("idle");
+          setOpen(false);
+          window.location.reload();
+        }, 2000);
+      } catch (err) {
+        setRestoreStatus("error");
+        setRestoreMsg(err instanceof Error ? err.message : "Error al leer el archivo");
+        setTimeout(() => setRestoreStatus("idle"), 3000);
+      }
+    };
+    reader.readAsText(file);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   function download(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a   = document.createElement("a");
     a.href = url;
     a.download = filename;
     a.click();
@@ -73,28 +137,19 @@ export default function ExportButton() {
 
   return (
     <>
-      {/* Overlay */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setOpen(false)}
-        />
-      )}
+      {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
 
-      {/* Panel */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-72 rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/40 overflow-hidden">
+        <div className="fixed bottom-24 right-6 z-50 w-80 rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/40 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-            <p className="text-sm font-semibold text-slate-200">Exportar datos</p>
-            <button
-              onClick={() => setOpen(false)}
-              className="text-slate-500 hover:text-slate-300 transition-colors"
-            >
+            <p className="text-sm font-semibold text-slate-200">Exportar / Restaurar</p>
+            <button onClick={() => setOpen(false)} className="text-slate-500 hover:text-slate-300 transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
 
           <div className="p-3 space-y-2">
+            {/* JSON completo */}
             <button
               onClick={exportJSON}
               className={clsx(
@@ -106,11 +161,12 @@ export default function ExportButton() {
             >
               {done === "json" ? <Check className="w-5 h-5 shrink-0" /> : <FileJson className="w-5 h-5 shrink-0 text-sky-400" />}
               <div>
-                <p className="text-sm font-medium">{done === "json" ? "Descargado" : "Exportar JSON"}</p>
-                <p className="text-xs text-slate-500 mt-0.5">Todos los datos completos</p>
+                <p className="text-sm font-medium">{done === "json" ? "Descargado" : "Backup completo (JSON)"}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Registros, liquidaciones, precios, config</p>
               </div>
             </button>
 
+            {/* CSV */}
             <button
               onClick={exportCSV}
               className={clsx(
@@ -123,9 +179,39 @@ export default function ExportButton() {
               {done === "csv" ? <Check className="w-5 h-5 shrink-0" /> : <FileText className="w-5 h-5 shrink-0 text-violet-400" />}
               <div>
                 <p className="text-sm font-medium">{done === "csv" ? "Descargado" : "Exportar CSV"}</p>
-                <p className="text-xs text-slate-500 mt-0.5">Registros para Excel / Sheets</p>
+                <p className="text-xs text-slate-500 mt-0.5">Registros para Excel / Google Sheets</p>
               </div>
             </button>
+
+            {/* Restaurar */}
+            <div className="border-t border-slate-800 pt-2 mt-1">
+              <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={handleRestoreFile} />
+              <button
+                onClick={() => fileRef.current?.click()}
+                className={clsx(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-150",
+                  restoreStatus === "ok"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                    : restoreStatus === "error"
+                    ? "border-red-500/30 bg-red-500/10 text-red-400"
+                    : "border-slate-700 hover:border-amber-500/30 hover:bg-amber-500/5 text-slate-400 hover:text-amber-400"
+                )}
+              >
+                {restoreStatus === "ok"
+                  ? <Check className="w-5 h-5 shrink-0" />
+                  : restoreStatus === "error"
+                  ? <AlertTriangle className="w-5 h-5 shrink-0" />
+                  : <Upload className="w-5 h-5 shrink-0 text-amber-400" />}
+                <div>
+                  <p className="text-sm font-medium">
+                    {restoreStatus === "ok" ? "Restaurado" : restoreStatus === "error" ? "Error" : "Restaurar desde backup"}
+                  </p>
+                  <p className="text-xs mt-0.5 opacity-70">
+                    {restoreStatus !== "idle" ? restoreMsg : "Carga un archivo .json generado aquí"}
+                  </p>
+                </div>
+              </button>
+            </div>
           </div>
 
           <div className="px-4 py-3 border-t border-slate-800 bg-slate-950/40">
@@ -136,7 +222,6 @@ export default function ExportButton() {
         </div>
       )}
 
-      {/* FAB */}
       <button
         onClick={() => setOpen((v) => !v)}
         className={clsx(

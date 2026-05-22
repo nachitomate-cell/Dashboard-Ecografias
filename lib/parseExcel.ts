@@ -93,7 +93,7 @@ export function parseExcelFile(buffer: ArrayBuffer, fileName: string): ParsedDay
     });
   }
 
-  // Atendidos = "Fin de Atención" + "Por recaudar" (ambos son exámenes realizados y liquidables)
+  // Atendidos = "Fin de Atención" + "Por recaudar" + "Rezagado" (exámenes realizados y liquidables)
   // Pre-calcular qué combinaciones paciente+examen ya tienen un "Fin de Atención" con orden asignado.
   // Esto evita contar doble los casos donde el HIS genera una fila "Por recaudar" (orden=0)
   // para el mismo examen que ya aparece como "Fin de Atención" (con orden) el mismo día.
@@ -106,10 +106,10 @@ export function parseExcelFile(buffer: ArrayBuffer, fileName: string): ParsedDay
   const seen = new Set<string>();
   const atendidos = rows.filter((r) => {
     const e = r.estado.toLowerCase();
-    if (!e.includes("fin de atenc") && !e.includes("por recaudar")) return false;
-    // Si es Por Recaudar sin orden y ya existe un Fin de Atención para el mismo paciente+examen,
-    // es un doble estado del HIS → descartar la fila Por Recaudar.
-    if (e.includes("por recaudar") && r.orden === "0") {
+    if (!e.includes("fin de atenc") && !e.includes("por recaudar") && !e.includes("rezagado")) return false;
+    // Si es Por Recaudar / Rezagado sin orden y ya existe un Fin de Atención para el mismo
+    // paciente+examen, es un doble estado del HIS → descartar la fila secundaria.
+    if ((e.includes("por recaudar") || e.includes("rezagado")) && r.orden === "0") {
       if (finAtencionKeys.has(`${r.paciente}|${r.examen}`)) return false;
     }
     const key = r.orden !== "0" ? `${r.orden}|${r.examen}` : `${r.paciente}|${r.examen}|${r.hrReserva}`;
@@ -239,7 +239,7 @@ export function buildDayReport(
 ): DayReport {
   const examenes: MatchedExam[] = parsed.atendidos.map((row) => ({
     row,
-    estado: row.estado.toLowerCase().includes("fin de atenc") ? "finAtencion" as const : "porRecaudar" as const,
+    estado: row.estado.toLowerCase().includes("fin de atenc") ? "finAtencion" as const : "porRecaudar" as const, // Rezagado → porRecaudar
     ...matchExamen(row.examen, prestaciones, precios),
   }));
 

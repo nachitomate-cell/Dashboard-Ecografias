@@ -55,15 +55,16 @@ export default function MensualPage() {
     }
   }, [mesSeleccionado, anioSeleccionado]);
 
+  // Usar T12:00:00 para evitar desfase de zona horaria (UTC-4 en Chile)
   const regsDelMes = registros.filter((r) => {
-    const d = new Date(r.fecha);
+    const d = new Date(r.fecha + "T12:00:00");
     return d.getMonth() === mesSeleccionado && d.getFullYear() === anioSeleccionado;
   });
 
   const mesAnterior = mesSeleccionado === 0 ? 11 : mesSeleccionado - 1;
   const anioMesAnterior = mesSeleccionado === 0 ? anioSeleccionado - 1 : anioSeleccionado;
   const regsAnterior = registros.filter((r) => {
-    const d = new Date(r.fecha);
+    const d = new Date(r.fecha + "T12:00:00");
     return d.getMonth() === mesAnterior && d.getFullYear() === anioMesAnterior;
   });
 
@@ -117,7 +118,7 @@ export default function MensualPage() {
   // Días disponibles para seleccionar (meses con datos)
   const mesesDisponibles = Array.from(
     new Set(registros.map((r) => {
-      const d = new Date(r.fecha);
+      const d = new Date(r.fecha + "T12:00:00");
       return `${d.getFullYear()}-${d.getMonth()}`;
     }))
   ).map((key) => {

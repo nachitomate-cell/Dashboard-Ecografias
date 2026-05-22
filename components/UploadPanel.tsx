@@ -283,6 +283,20 @@ export default function UploadPanel() {
 
   function handleImport(report: DayReport) {
     const existing = getRegistros();
+
+    // Detectar Por Recaudar multi-día: misma combinación paciente+examen ya importada en otro día
+    const porRecaudarNuevos = report.examenes.filter((e) => e.estado === "porRecaudar");
+    const multiDiaDups = porRecaudarNuevos.filter((e) => {
+      return existing.some(
+        (r) => r.estado === "porRecaudar" &&
+               r.fecha !== report.fecha &&
+               // No podemos comparar paciente directamente (no está en Registro),
+               // pero podemos comparar por prestacionId + precio (proxy razonable)
+               r.prestacionId === e.prestacionId &&
+               r.precioUnitario === e.precio
+      );
+    });
+
     const newRegs: Registro[] = report.examenes
       .filter((e) => e.prestacionId && e.precio > 0)
       .map((e, i) => ({
@@ -301,7 +315,16 @@ export default function UploadPanel() {
     upsertEstadoDia({ fecha: report.fecha, ...report.statusCounts });
     setImported((prev) => new Set([...prev, report.fecha]));
     const label = new Date(report.fecha + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short" });
-    toast.success(`${report.total} exámenes importados — ${label}`);
+
+    if (multiDiaDups.length > 0) {
+      toast.success(`${report.total} exámenes importados — ${label}`);
+      // Aviso separado para multi-día (no bloquea el import, solo informa)
+      setTimeout(() => {
+        toast.success(`⚠ ${multiDiaDups.length} exámen(es) Por Recaudar pueden ya estar importados de otro día`);
+      }, 400);
+    } else {
+      toast.success(`${report.total} exámenes importados — ${label}`);
+    }
   }
 
   function handleImportAll() {

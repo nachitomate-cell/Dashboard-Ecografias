@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { HardDrive, Database, RefreshCw, Trash2, AlertTriangle, CheckCircle } from "lucide-react";
-import { getStorageUsage, type StorageEntry } from "@/lib/store";
+import { getStorageUsage, clearAllData, type StorageEntry } from "@/lib/store";
 import clsx from "clsx";
 
 function fmtBytes(b: number): string {
@@ -11,15 +11,38 @@ function fmtBytes(b: number): string {
   return `${b} B`;
 }
 
+const APP_KEYS = [
+  "ecografia_registros",
+  "ecografia_liquidaciones",
+  "ecografia_estados_dia",
+  "ecografia_prestaciones",
+  "ecografia_precios",
+  "ecografia_tope_config",
+] as const;
+
 const KEY_COLORS: Record<string, string> = {
   "ecografia_registros":    "#38bdf8",
-  "ecografia_precios":      "#818cf8",
+  "ecografia_liquidaciones":"#818cf8",
+  "ecografia_estados_dia":  "#a78bfa",
   "ecografia_prestaciones": "#34d399",
+  "ecografia_precios":      "#fb923c",
+  "ecografia_tope_config":  "#64748b",
+};
+const KEY_LABELS: Record<string, string> = {
+  "ecografia_registros":    "Registros HIS",
+  "ecografia_liquidaciones":"Liquidaciones",
+  "ecografia_estados_dia":  "Estados por día",
+  "ecografia_prestaciones": "Prestaciones",
+  "ecografia_precios":      "Precios",
+  "ecografia_tope_config":  "Configuración",
 };
 const KEY_ICONS: Record<string, string> = {
   "ecografia_registros":    "Historial de atenciones importadas",
-  "ecografia_precios":      "Tabla de precios por nivel (Arancel MLE 2026)",
+  "ecografia_liquidaciones":"Liquidaciones mensuales importadas",
+  "ecografia_estados_dia":  "Conteo de estados por día (Fin, PorRec, Ausente...)",
   "ecografia_prestaciones": "Catálogo de prestaciones",
+  "ecografia_precios":      "Tabla de precios por nivel (Arancel MLE 2026)",
+  "ecografia_tope_config":  "Meta mensual y porcentaje de acuerdo",
 };
 
 export default function UsoPage() {
@@ -45,9 +68,7 @@ export default function UsoPage() {
   }
 
   function clearAll() {
-    ["ecografia_registros", "ecografia_precios", "ecografia_prestaciones"].forEach((k) =>
-      localStorage.removeItem(k)
-    );
+    clearAllData(); // usa la función centralizada que borra TODAS las claves de la app
     refresh();
   }
 
@@ -57,9 +78,9 @@ export default function UsoPage() {
   const statusColor = pct > 80 ? "text-red-400" : pct > 50 ? "text-amber-400" : "text-emerald-400";
   const barColor   = pct > 80 ? "#f87171"  : pct > 50 ? "#fbbf24"  : "#34d399";
 
-  const appKeys = new Set(["ecografia_registros", "ecografia_precios", "ecografia_prestaciones"]);
-  const appEntries = data.entries.filter((e) => appKeys.has(e.key));
-  const otherEntries = data.entries.filter((e) => !appKeys.has(e.key));
+  const appKeysSet = new Set(APP_KEYS as readonly string[]);
+  const appEntries = data.entries.filter((e) => appKeysSet.has(e.key));
+  const otherEntries = data.entries.filter((e) => !appKeysSet.has(e.key));
 
   return (
     <div className="p-6 space-y-6 max-w-3xl mx-auto">
@@ -125,9 +146,9 @@ export default function UsoPage() {
           </button>
         </div>
 
-        {appKeys.size > 0 && (
+        {APP_KEYS.length > 0 && (
           <div className="divide-y divide-slate-800/60">
-            {(["ecografia_registros", "ecografia_precios", "ecografia_prestaciones"] as const).map((key) => {
+            {APP_KEYS.map((key) => {
               const entry = appEntries.find((e) => e.key === key);
               const bytes = entry?.bytes ?? 0;
               const rowPct = data.totalBytes > 0 ? (bytes / data.limitBytes) * 100 : 0;
@@ -141,7 +162,7 @@ export default function UsoPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="w-3 h-3 rounded-full shrink-0 mt-0.5" style={{ background: color }} />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-200">{entry?.label ?? key}</p>
+                        <p className="text-sm font-medium text-slate-200">{KEY_LABELS[key] ?? key}</p>
                         <p className="text-xs text-slate-600 mt-0.5">{KEY_ICONS[key] ?? ""}</p>
                       </div>
                     </div>

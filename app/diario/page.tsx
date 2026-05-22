@@ -34,14 +34,14 @@ export default function DiarioPage() {
   const [calAnio, setCalAnio] = useState(new Date().getFullYear());
   const [estadosMes, setEstadosMes] = useState({ finAtencion: 0, porRecaudar: 0, ausente: 0, eliminado: 0, enCaja: 0 });
 
-  function reloadData() {
+  function reloadData(mes = calMes, anio = calAnio) {
     const regs = getRegistros();
     setRegistros(regs);
     setPrestaciones(getPrestaciones());
-    const now = new Date();
+    // Filtrar estados del mes visible en el calendario (no del mes actual del sistema)
     const dias = getEstadosDia().filter((d) => {
-      const f = new Date(d.fecha);
-      return f.getFullYear() === now.getFullYear() && f.getMonth() === now.getMonth();
+      const f = new Date(d.fecha + "T12:00:00");
+      return f.getFullYear() === anio && f.getMonth() === mes;
     });
     setEstadosMes({
       finAtencion: dias.reduce((s, d) => s + d.finAtencion, 0),
@@ -53,6 +53,8 @@ export default function DiarioPage() {
   }
 
   useEffect(() => { reloadData(); }, [activeTab]);
+  // Actualizar estadísticas cuando el usuario navega a otro mes en el calendario
+  useEffect(() => { reloadData(calMes, calAnio); }, [calMes, calAnio]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mapa fecha → {count, total} para el calendario
   const dateMap = registros.reduce((acc, r) => {
@@ -278,7 +280,7 @@ export default function DiarioPage() {
       {(estadosMes.finAtencion + estadosMes.porRecaudar + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja) > 0 && (
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-medium text-slate-300">Estado de Citaciones — {MONTH_NAMES[new Date().getMonth()]}</p>
+            <p className="text-sm font-medium text-slate-300">Estado de Citaciones — {MONTH_NAMES[calMes]} {calAnio !== new Date().getFullYear() ? calAnio : ""}</p>
             <p className="text-xs text-slate-600 tabular-nums">
               Total: {estadosMes.finAtencion + estadosMes.porRecaudar + estadosMes.ausente + estadosMes.eliminado + estadosMes.enCaja}
             </p>
