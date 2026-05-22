@@ -2,6 +2,7 @@
 
 import ToastContainer from "./Toast";
 import CommandPalette from "./CommandPalette";
+import WelcomeModal from "./WelcomeModal";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -9,6 +10,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {children}
       <ToastContainer />
       <CommandPalette />
+      <WelcomeModal />
     </>
   );
 }

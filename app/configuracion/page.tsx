@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Tag, DollarSign, Save, X, Check, FileDown, AlertTriangle, RefreshCw, Target, FlaskConical } from "lucide-react";
+import HelpModal, { HelpButton, type HelpSection } from "@/components/HelpModal";
 import { toast } from "@/lib/toast";
 import {
   getPrestaciones,
@@ -58,6 +59,63 @@ export default function ConfiguracionPage() {
 
   // Demo / Reset
   const [confirmReset, setConfirmReset] = useState<"none" | "operacional" | "todo">("none");
+  const [showHelp, setShowHelp] = useState(false);
+
+  const HELP_SECTIONS: HelpSection[] = [
+    {
+      icon: "📋",
+      heading: "Prestaciones",
+      highlight: "sky",
+      body: [
+        "Lista de tipos de exámenes que realiza la unidad. Cada prestación tiene código del arancel, nombre, categoría y duración estimada.",
+        'Si usas el Arancel MLE 2026, ve a la pestaña "Arancel MLE 2026" y cárgalo con un clic — ya incluye los 21 tipos de ecografía con sus códigos y precios.',
+        "Solo modifica estas prestaciones si realizas exámenes especiales no incluidos en el arancel estándar.",
+      ],
+    },
+    {
+      icon: "💲",
+      heading: "Precios y niveles del arancel",
+      highlight: "violet",
+      body: [
+        "Nivel 1: usado por Medicenter UNO SPA (convenio). Es el nivel que se aplica por defecto.",
+        "Nivel 2: precio estándar para Isapres privadas.",
+        "Nivel 3: precio máximo del arancel.",
+        "El nivel usado para los cálculos se configura en 'Meta Mensual → Nivel de arancel'. Por defecto es Nivel 1.",
+        "Puedes editar un precio haciendo clic en el valor o en el botón Editar. El cambio queda vigente desde hoy.",
+      ],
+    },
+    {
+      icon: "🎯",
+      heading: "Meta mensual",
+      highlight: "emerald",
+      body: [
+        "Tope mensual: el máximo de honorarios que MediCenter te paga en el período. Por defecto: $6.300.000.",
+        "% Acuerdo: porcentaje que te corresponde del arancel según tu contrato. Por defecto: 37%.",
+        "Este porcentaje se usa para estimar el 'A Pago' cuando no hay liquidación cargada.",
+        "El valor real se lee automáticamente de la liquidación una vez que la subes.",
+      ],
+    },
+    {
+      icon: "⚠️",
+      heading: "Importar Arancel MLE 2026",
+      highlight: "amber",
+      body: [
+        "Carga los 21 tipos de ecografía del Arancel MLE 2026 con sus códigos y precios para los tres niveles.",
+        "Atención: reemplaza las prestaciones y precios actuales. Los registros históricos no se tocan.",
+        "Úsalo cuando acabas de instalar el dashboard o cuando necesitas restablecer los precios oficiales.",
+      ],
+    },
+    {
+      icon: "🔄",
+      heading: "Demo / Reset",
+      highlight: "red",
+      body: [
+        '"Borrar datos de atención": elimina registros HIS y liquidaciones, pero conserva prestaciones y precios configurados. Ideal para empezar un nuevo período de prueba.',
+        '"Borrar todo": resetea completamente el dashboard. Úsalo solo si quieres empezar desde cero.',
+        "Haz un backup antes (botón Exportar → Backup completo JSON) para no perder datos.",
+      ],
+    },
+  ];
 
   useEffect(() => {
     const p = getPrestaciones();
@@ -184,9 +242,21 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-100">Configuración</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Gestiona prestaciones y precios de tu consulta</p>
+      {showHelp && (
+        <HelpModal
+          title="Ayuda — Configuración"
+          subtitle="Cómo gestionar prestaciones, precios y la meta mensual"
+          sections={HELP_SECTIONS}
+          onClose={() => setShowHelp(false)}
+        />
+      )}
+
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-100">Configuración</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Gestiona prestaciones y precios de tu consulta</p>
+        </div>
+        <HelpButton onClick={() => setShowHelp(true)} />
       </div>
 
       {/* Tabs */}
@@ -413,7 +483,7 @@ export default function ConfiguracionPage() {
                       <div>
                         <p className="text-sm text-slate-300">{prest.nombre}</p>
                         <p className="text-xs text-slate-600 mt-0.5">
-                          {NIVEL_LABELS[(entry as PrecioPrestacion & { nivel?: number }).nivel ?? 2]} · Vigente desde {new Date(entry.vigenciaDesde).toLocaleDateString("es-CL")}
+                          {NIVEL_LABELS[(entry as PrecioPrestacion & { nivel?: number }).nivel ?? 2]} · Vigente desde {new Date(entry.vigenciaDesde + "T12:00:00").toLocaleDateString("es-CL")}
                         </p>
                       </div>
                       <p className="text-sm font-medium text-slate-200 tabular-nums">{fmt(entry.precio)}</p>

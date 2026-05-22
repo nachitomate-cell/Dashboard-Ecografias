@@ -8,6 +8,7 @@ import {
 import { DollarSign, FileText, Clock, TrendingUp, Upload, UserCheck, UserX, UserMinus, CreditCard, ChevronLeft, ChevronRight } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import UploadPanel from "@/components/UploadPanel";
+import HelpModal, { HelpButton, type HelpSection } from "@/components/HelpModal";
 import { getRegistros, getPrestaciones, getEstadosDia, type Registro, type Prestacion } from "@/lib/store";
 
 const COLORS = ["#38bdf8", "#818cf8", "#34d399", "#fb923c", "#f472b6", "#a78bfa"];
@@ -33,6 +34,53 @@ export default function DiarioPage() {
   const [calMes, setCalMes] = useState(new Date().getMonth());
   const [calAnio, setCalAnio] = useState(new Date().getFullYear());
   const [estadosMes, setEstadosMes] = useState({ finAtencion: 0, porRecaudar: 0, ausente: 0, eliminado: 0, enCaja: 0 });
+  const [showHelp, setShowHelp] = useState(false);
+
+  const HELP_SECTIONS: HelpSection[] = [
+    {
+      icon: "📁",
+      heading: "Cómo importar archivos HIS",
+      highlight: "sky",
+      body: [
+        'Ve a la pestaña "Cargar Excel" en esta misma página.',
+        "El archivo debe tener la fecha en el nombre con formato DD-MM-YYYY (ej: 15-05-2026.xlsx).",
+        "Puedes arrastrar varios archivos a la vez para importar múltiples días de una sola vez.",
+        "Si importas el mismo día dos veces, los registros anteriores son reemplazados automáticamente.",
+      ],
+    },
+    {
+      icon: "📅",
+      heading: "Usar el calendario",
+      highlight: "violet",
+      body: [
+        "Los días con un punto azul tienen datos importados. Haz clic en cualquiera para ver sus estadísticas.",
+        "Navega entre meses con las flechas. Las estadísticas de \"Estado de Citaciones\" cambian con el mes visible.",
+        'El botón "Volver a hoy" regresa al día actual.',
+      ],
+    },
+    {
+      icon: "📊",
+      heading: "Interpretar los indicadores",
+      highlight: "emerald",
+      body: [
+        "Ingresos: valor estimado según el Arancel MLE 2026 (no el cobro real al paciente).",
+        "La flecha de tendencia (↑ ↓) compara con el día anterior.",
+        "Tiempo Activo: duración estimada basada en los tipos de exámenes realizados.",
+      ],
+    },
+    {
+      icon: "🔄",
+      heading: "Estados de citación",
+      highlight: "amber",
+      body: [
+        "Fin de Atención: examen realizado y N° de orden asignado. Estos son los que se facturan.",
+        "Por Recaudar: examen realizado, pero el paciente aún no ha pagado en caja. Sin N° de orden.",
+        "Ausente: el paciente no se presentó.",
+        "En Caja: paciente en proceso de pago (estado transitorio del HIS).",
+        "Importante: 'Por Recaudar' puede tardar 1 mes o más en aparecer en la liquidación.",
+      ],
+    },
+  ];
 
   function reloadData(mes = calMes, anio = calAnio) {
     const regs = getRegistros();
@@ -145,6 +193,15 @@ export default function DiarioPage() {
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
+      {showHelp && (
+        <HelpModal
+          title="Ayuda — Resumen Diario"
+          subtitle="Cómo usar esta sección"
+          sections={HELP_SECTIONS}
+          onClose={() => setShowHelp(false)}
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-100">Resumen Diario</h1>
@@ -152,6 +209,8 @@ export default function DiarioPage() {
             {new Date().toLocaleDateString("es-CL", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <HelpButton onClick={() => setShowHelp(true)} />
         <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg border border-slate-800">
           <button onClick={() => setActiveTab("resumen")}
             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "resumen" ? "bg-slate-900 text-slate-100 border border-slate-700 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}>
@@ -161,6 +220,7 @@ export default function DiarioPage() {
             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "carga" ? "bg-slate-900 text-slate-100 border border-slate-700 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}>
             <Upload className="w-4 h-4" /> Cargar Excel
           </button>
+        </div>
         </div>
       </div>
 

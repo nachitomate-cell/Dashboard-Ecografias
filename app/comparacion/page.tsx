@@ -11,6 +11,7 @@ import {
   FileText, DollarSign, Scale, ShieldCheck, ShieldAlert,
   Sparkles, RefreshCw, Clock, Eye, EyeOff,
 } from "lucide-react";
+import HelpModal, { HelpButton, type HelpSection } from "@/components/HelpModal";
 import {
   getRegistros, getPrestaciones, getLiquidaciones,
   getTopeConfig, getPrecios,
@@ -42,6 +43,62 @@ export default function ComparacionPage() {
   const [selectedPeriodo, setSelectedPeriodo] = useState("");
   // "todos" | "inteligente" | "soloFin"
   const [modoHIS, setModoHIS] = useState<"todos" | "inteligente" | "soloFin">("todos");
+  const [showHelp, setShowHelp] = useState(false);
+
+  const HELP_SECTIONS: HelpSection[] = [
+    {
+      icon: "⚖️",
+      heading: "Cómo leer el veredicto",
+      highlight: "emerald",
+      body: [
+        "Verde ✓: La liquidación es consistente con los registros HIS (diferencia ≤ 5%).",
+        "Rojo ✗: Posible subpago — se liquidó menos de lo estimado. Revisar con la clínica.",
+        "Naranja ⚠: Diferencia fuera del margen esperado. Puede ser por arancel distinto o ajustes.",
+        "Gris: Falta la liquidación del período, o no hay datos HIS importados.",
+      ],
+    },
+    {
+      icon: "⏳",
+      heading: "¿Qué son los exámenes 'Por Recaudar'?",
+      highlight: "violet",
+      body: [
+        "Son exámenes realizados donde el paciente aún no ha pagado en caja al momento del cierre HIS.",
+        "No tienen N° de orden asignado, por eso no pueden cruzarse directamente con la liquidación.",
+        "Pueden aparecer en la liquidación del mes siguiente una vez que el paciente pague.",
+        'Usa el modo "Solo Fin de Atención" para excluirlos de la comparación si generan una diferencia falsa.',
+      ],
+    },
+    {
+      icon: "🔍",
+      heading: "Modos de comparación HIS",
+      highlight: "sky",
+      body: [
+        "Todos los HIS: incluye Fin de Atención + Por Recaudar. Puede inflar el estimado si aún no cobraron.",
+        "Solo Fin de Atención: excluye Por Recaudar. Comparación más conservadora.",
+        "Cobrados en el período: modo inteligente (disponible tras reimportar los archivos HIS). Cruza por N° de orden para saber exactamente cuáles Por Recaudar ya están en esta liquidación.",
+      ],
+    },
+    {
+      icon: "🤖",
+      heading: "El asistente de análisis",
+      highlight: "amber",
+      body: [
+        'Pulsa "Generar análisis" para obtener conclusiones automáticas sobre el período.',
+        "Detecta diferencias por prestación, porcentajes de acuerdo distintos y exámenes sin clasificar.",
+        "No es una IA externa — lee los datos que ya están cargados en el navegador.",
+      ],
+    },
+    {
+      icon: "💡",
+      heading: "Flujo recomendado",
+      body: [
+        "1. Importa todos los HIS del mes en 'Diario'.",
+        "2. Carga la liquidación en 'Mensual → Liquidación'.",
+        "3. Vuelve aquí, selecciona el período y pulsa 'Generar análisis'.",
+        "4. Si hay subpago, revisa la tabla de detalle por prestación para identificar las diferencias.",
+      ],
+    },
+  ];
 
   useEffect(() => {
     const regs   = getRegistros();
@@ -299,6 +356,16 @@ export default function ComparacionPage() {
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
 
+      {/* Help modal */}
+      {showHelp && (
+        <HelpModal
+          title="Ayuda — Verificación de Honorarios"
+          subtitle="Cómo interpretar la comparación HIS vs Liquidación"
+          sections={HELP_SECTIONS}
+          onClose={() => setShowHelp(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -310,6 +377,7 @@ export default function ComparacionPage() {
 
         {/* Period selector */}
         <div className="flex items-center gap-2">
+          <HelpButton onClick={() => setShowHelp(true)} />
           <span className="text-xs text-slate-600">Período:</span>
           <select
             className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 outline-none focus:border-sky-500 cursor-pointer"
@@ -473,7 +541,7 @@ export default function ComparacionPage() {
               <div className="text-center">
                 <p className="text-xs text-slate-600 mb-1">Real Liquidación</p>
                 <p className={`text-lg font-semibold tabular-nums ${hasLiq ? "text-sky-400" : "text-slate-600"}`}>{hasLiq ? fmtShort(liqAPago) : "—"}</p>
-                <p className="text-xs text-slate-600 mt-0.5">{hasLiq ? `${liqAcuerdoPct}% aplicado` : "sin datos"}</p>
+                <p className="text-xs text-slate-600 mt-0.5">{hasLiq ? `${liqAcuerdoPct ?? acuerdoPct}% aplicado` : "sin datos"}</p>
               </div>
             </div>
             {hasBoth && (

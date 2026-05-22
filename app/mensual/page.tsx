@@ -15,6 +15,7 @@ import {
 import { DollarSign, FileText, TrendingUp, Award, BarChart2, FileSpreadsheet, Target, Calendar } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import LiquidacionPanel from "@/components/LiquidacionPanel";
+import HelpModal, { HelpButton, type HelpSection } from "@/components/HelpModal";
 import { getRegistros, getPrestaciones, getLiquidaciones, getTopeConfig, type Registro, type Prestacion } from "@/lib/store";
 
 function fmt(n: number) {
@@ -37,6 +38,54 @@ export default function MensualPage() {
   const [anioSeleccionado, setAnioSeleccionado] = useState(new Date().getFullYear());
   const [topeAPago, setTopeAPago] = useState(0);
   const [topeConfig, setTopeConfig] = useState({ montoCLP: 6_300_000, acuerdoPct: 37 });
+  const [showHelp, setShowHelp] = useState(false);
+
+  const HELP_SECTIONS: HelpSection[] = [
+    {
+      icon: "📋",
+      heading: "Resumen HIS del mes",
+      highlight: "sky",
+      body: [
+        "Muestra el total de exámenes importados y el ingreso estimado según el Arancel MLE 2026.",
+        "Usa el selector de mes para ver períodos anteriores.",
+        "El porcentaje de cambio (↑ ↓) compara con el mes anterior.",
+        "La columna \"A Pago est.\" es el ingreso estimado multiplicado por tu % de acuerdo configurado.",
+      ],
+    },
+    {
+      icon: "🎯",
+      heading: "Meta mensual",
+      highlight: "emerald",
+      body: [
+        "Muestra el progreso hacia tu tope mensual de honorarios.",
+        'Si ya cargaste la liquidación, el valor es el "A Pago" real. Si no, se estima aplicando el % de acuerdo al total HIS.',
+        'La barra se pone amarilla al 75% y verde al llegar al 100%.',
+        'Configura el tope en "Configuración → Meta Mensual".',
+      ],
+    },
+    {
+      icon: "📄",
+      heading: "Cargar la liquidación",
+      highlight: "violet",
+      body: [
+        'Ve a la pestaña "Liquidación" en esta misma página.',
+        "Arrastra el Excel que recibes de MediCenter con el detalle de tu pago mensual.",
+        "El sistema calcula automáticamente el porcentaje de acuerdo y el total liquidado.",
+        "Puedes cargar una liquidación por período. Si cargas otra del mismo período, reemplaza la anterior.",
+      ],
+    },
+    {
+      icon: "💡",
+      heading: "Diferencia entre HIS y liquidación",
+      highlight: "amber",
+      body: [
+        "El valor HIS es lo que realizaste según el arancel. No es lo que cobras — es la base de cálculo.",
+        "La liquidación muestra lo que MediCenter realmente te pagó.",
+        'Para ver si el pago fue correcto, ve a "Verificación".',
+        'Los exámenes "Por Recaudar" que aún no cobraron aparecerán en la liquidación del mes siguiente.',
+      ],
+    },
+  ];
 
   useEffect(() => {
     setRegistros(getRegistros());
@@ -76,10 +125,10 @@ export default function MensualPage() {
   const pctIngresos = totalAnterior > 0 ? (((totalMes - totalAnterior) / totalAnterior) * 100).toFixed(1) : null;
   const pctPrestaciones = cantAnterior > 0 ? (((cantMes - cantAnterior) / cantAnterior) * 100).toFixed(1) : null;
 
-  // Ingresos por semana del mes
+  // Ingresos por semana del mes — T12:00:00 evita desfase UTC-4 en Chile
   const semanas: Record<number, number> = {};
   regsDelMes.forEach((r) => {
-    const day = new Date(r.fecha).getDate();
+    const day = new Date(r.fecha + "T12:00:00").getDate();
     const sem = Math.ceil(day / 7);
     semanas[sem] = (semanas[sem] || 0) + r.precioUnitario * r.cantidad;
   });
@@ -140,6 +189,16 @@ export default function MensualPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
+      {/* Help modal */}
+      {showHelp && (
+        <HelpModal
+          title="Ayuda — Resumen Mensual"
+          subtitle="Cómo usar esta sección"
+          sections={HELP_SECTIONS}
+          onClose={() => setShowHelp(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -147,6 +206,8 @@ export default function MensualPage() {
           <p className="text-sm text-slate-500 mt-0.5">{MONTH_NAMES[mesSeleccionado]} {anioSeleccionado}</p>
         </div>
         {/* Tabs */}
+        <div className="flex items-center gap-2">
+          <HelpButton onClick={() => setShowHelp(true)} />
         <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg border border-slate-800">
           <button onClick={() => setActiveTab("resumen")}
             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "resumen" ? "bg-slate-900 text-slate-100 border border-slate-700 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}>
@@ -156,6 +217,7 @@ export default function MensualPage() {
             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "liquidacion" ? "bg-slate-900 text-slate-100 border border-slate-700 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}>
             <FileSpreadsheet className="w-4 h-4" /> Liquidación
           </button>
+        </div>
         </div>
       </div>
 
@@ -172,6 +234,11 @@ export default function MensualPage() {
             setMesSeleccionado(m);
           }}
         >
+          {mesesDisponibles.length === 0 && (
+            <option value={`${anioSeleccionado}-${mesSeleccionado}`}>
+              {MONTH_NAMES[mesSeleccionado]} {anioSeleccionado}
+            </option>
+          )}
           {mesesDisponibles.map((m) => (
             <option key={`${m.anio}-${m.mes}`} value={`${m.anio}-${m.mes}`}>
               {m.label}

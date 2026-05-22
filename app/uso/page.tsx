@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { HardDrive, Database, RefreshCw, Trash2, AlertTriangle, CheckCircle } from "lucide-react";
 import { getStorageUsage, clearAllData, type StorageEntry } from "@/lib/store";
+import HelpModal, { HelpButton, type HelpSection } from "@/components/HelpModal";
 import clsx from "clsx";
 
 function fmtBytes(b: number): string {
@@ -49,6 +50,42 @@ export default function UsoPage() {
   const [data, setData] = useState<{ entries: StorageEntry[]; totalBytes: number; limitBytes: number } | null>(null);
   const [clearing, setClearing] = useState<string | null>(null);
   const [cleared, setCleared] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+
+  const HELP_SECTIONS: HelpSection[] = [
+    {
+      icon: "💾",
+      heading: "¿Dónde se guardan los datos?",
+      highlight: "sky",
+      body: [
+        "Todos los datos se guardan en el localStorage de este navegador, en este computador.",
+        "No se suben a ningún servidor. No requieren internet después de la primera carga.",
+        "Si limpias el caché o usas otro navegador/computador, los datos no estarán disponibles.",
+        "Por eso es importante hacer backups periódicos con el botón 'Exportar' (abajo derecha).",
+      ],
+    },
+    {
+      icon: "📊",
+      heading: "Desglose por categoría",
+      highlight: "violet",
+      body: [
+        "Registros HIS: el mayor consumidor de espacio. Cada examen importado ocupa aprox. 100–200 bytes.",
+        "Liquidaciones: archivos completos con detalle de cada fila de pago.",
+        "Prestaciones y Precios: el catálogo del arancel. Tamaño fijo, no crece con el uso.",
+        "1.000 exámenes importados ≈ ~200 KB. Tendrías que importar miles de meses para llenar el límite.",
+      ],
+    },
+    {
+      icon: "🗑️",
+      heading: "Limpiar datos",
+      highlight: "amber",
+      body: [
+        "Puedes limpiar cada categoría por separado con el botón 'Limpiar' de cada fila.",
+        "El botón 'Limpiar todo' borra todos los datos del dashboard (equivale a reinstalar).",
+        "Antes de limpiar, haz un backup JSON desde el botón 'Exportar' para poder restaurar.",
+      ],
+    },
+  ];
 
   const refresh = useCallback(() => {
     setData(getStorageUsage());
@@ -84,16 +121,29 @@ export default function UsoPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-3xl mx-auto">
+      {/* Help modal */}
+      {showHelp && (
+        <HelpModal
+          title="Ayuda — Almacenamiento"
+          subtitle="Cómo funcionan los datos locales"
+          sections={HELP_SECTIONS}
+          onClose={() => setShowHelp(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-100">Uso de Almacenamiento</h1>
           <p className="text-sm text-slate-500 mt-0.5">LocalStorage del navegador</p>
         </div>
+        <div className="flex items-center gap-2">
+          <HelpButton onClick={() => setShowHelp(true)} />
         <button onClick={refresh}
           className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded-lg transition-all">
           <RefreshCw className="w-4 h-4" /> Actualizar
         </button>
+        </div>
       </div>
 
       {/* Gauge principal */}
