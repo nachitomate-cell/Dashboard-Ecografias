@@ -130,7 +130,6 @@ export default function MensualPage() {
   const esEsteMes = hoy.getMonth() === mesSeleccionado && hoy.getFullYear() === anioSeleccionado;
   const diasEnMesTotal = new Date(anioSeleccionado, mesSeleccionado + 1, 0).getDate();
   const diasTranscurridos = esEsteMes ? hoy.getDate() : diasEnMesTotal;
-  const diasRestantes = esEsteMes ? diasEnMesTotal - diasTranscurridos : 0;
 
   // Días distintos con registros (días efectivamente trabajados)
   const diasConDatos = new Set(regsDelMes.map((r) => r.fecha)).size;
